@@ -65,6 +65,9 @@ export function extractCode(scanned: string) {
 
 export function appOrigin(h: Headers) {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  // On Vercel, the project's public address. A captain may be browsing a deployment's own
+  // address, which only opens for people logged in to Vercel, so it must not end up in links.
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return `${proto}://${host}`;

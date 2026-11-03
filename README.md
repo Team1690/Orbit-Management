@@ -73,7 +73,7 @@ Environment variables:
 | `DATABASE_URL` | Postgres connection string (Supabase's Session pooler). Without it the app uses the local PGlite database. |
 | `DATABASE_PATH` | Folder of the local PGlite database when `DATABASE_URL` isn't set (default `data/pglite`). |
 | `DATABASE_POOL_MAX` | Database connections per server instance (default 2 on Vercel, 5 elsewhere). |
-| `APP_URL` | Public address, e.g. `https://orbit.example.org`. Used in QR codes and invite links. Set this if the server sits behind a proxy and links come out wrong. |
+| `APP_URL` | Public address, e.g. `https://orbit.example.org`. Used in QR codes and invite links. On Vercel it defaults to the project's production domain; elsewhere, set this if the server sits behind a proxy and links come out wrong. |
 | `VAPID_SUBJECT` | Contact for the push notification services, e.g. `mailto:captains@yourschool.org`. Defaults to `APP_URL` when it's https. |
 | `CRON_SECRET` | Background jobs (creating meetings, missing-member alerts, automatic check-out) run every minute while the server is up. On serverless hosts (Vercel, App Hosting) they don't: call `GET /api/cron` with `Authorization: Bearer <CRON_SECRET>` every minute from an external scheduler. |
 | `COOKIE_SECURE` | Set to `true` to force secure cookies if your proxy doesn't send `X-Forwarded-Proto`. |
