@@ -1,5 +1,5 @@
 import { checkMissingAlerts } from "./alerts";
-import { all, nowIso, run } from "./db";
+import { all, nowIso, onServerlessHost, run } from "./db";
 import { ensureScheduledMeetings, meetingWindow, meetingsOn } from "./meetings";
 import { getSettings } from "./settings";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
@@ -45,9 +45,9 @@ export async function runTick(force = false) {
 
 /** Runs the jobs every minute while the server is up. */
 export function startBackgroundJobs() {
-  // Cloud Run (Firebase App Hosting) only gives the server CPU while it handles a request, so a
-  // timer could stall mid-transaction and hold the lock. There, Cloud Scheduler calls /api/cron instead.
-  if (process.env.K_SERVICE) return;
+  // Serverless hosts only give the server CPU while it handles a request, so a timer could stall
+  // mid-transaction and hold the lock. There, an external scheduler calls /api/cron instead.
+  if (onServerlessHost) return;
   const g = globalThis as typeof globalThis & { __orbitTimer?: NodeJS.Timeout };
   if (g.__orbitTimer) return;
   const tick = () => runTick(true).catch((err) => console.error("[orbit] background tick failed", err));

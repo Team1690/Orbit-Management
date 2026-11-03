@@ -13,9 +13,14 @@ const g = globalThis as typeof globalThis & {
   __orbitSql?: Map<string, string>;
 };
 
+/** Vercel or Cloud Run (Firebase App Hosting): no lasting disk, and CPU only during requests. */
+export const onServerlessHost = !!(process.env.VERCEL || process.env.K_SERVICE);
+
 async function open() {
   // The demo (npm run dev:demo) always uses its own local database, even if DATABASE_URL is set.
   const url = process.env.ORBIT_DEMO ? undefined : process.env.DATABASE_URL || undefined;
+  // A local database there would silently lose everything on the next restart.
+  if (!url && onServerlessHost) throw new Error("DATABASE_URL is not set. Add it in the host's environment variables.");
   const dir = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "pglite");
   const db = await openDatabase({ url, dir });
   await migrate(db);

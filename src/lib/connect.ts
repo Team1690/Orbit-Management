@@ -36,8 +36,9 @@ async function openServer(url: string): Promise<Database> {
     // Supabase's pooler signs its certificate with its own CA, so encrypt without verifying it.
     // A URL with ?sslmode=… overrides this.
     ssl: local ? undefined : { rejectUnauthorized: false },
-    // Supabase's free plan allows few connections; App Hosting may run more than one instance.
-    max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+    // Supabase's free plan allows few connections, and hosts may run several instances at once.
+    // Vercel starts more (smaller) instances than App Hosting, so each one gets fewer.
+    max: Number(process.env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 2 : 5)),
   });
   pool.on("error", (err) => console.error("[orbit] idle database connection failed", err));
   const wrap = (c: Pool | PoolClient): Queryable => ({

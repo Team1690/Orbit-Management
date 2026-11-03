@@ -57,16 +57,14 @@ The first visit opens a setup page where you create the first captain account. T
 
 Phones need to reach the server, and three phone features only work over **HTTPS**: the in-app camera scanner, captain alert notifications, and installing the app on iPhone properly.
 
-The app is hosted on **Firebase App Hosting** (an `https://…hosted.app` address) with its data in a **Supabase** Postgres database, which **Hasura** can also connect to:
+The app is hosted on **Vercel** (free Hobby plan, an `https://….vercel.app` address) with its data in a **Supabase** Postgres database, which **Hasura** can also connect to. None of these need a credit card.
 
 1. **Database:** create a Supabase project (region Frankfurt). In **Connect**, copy the **Session pooler** string and put your database password in it. The app creates its tables on first start. Because the app talks to the database directly, turn off Supabase's **Data API** (Project Settings → Data API), so the tables can't be read through Supabase's public API.
-2. **Firebase:** create a project, switch it to the Blaze plan (App Hosting needs it; set a budget alert), then **Build → App Hosting → Get started** with this GitHub repository, branch `main`. In the backend's settings, pick the `nodejs24` runtime.
-3. **Secrets:** run `firebase apphosting:secrets:set databaseUrl` (the Supabase string) and `firebase apphosting:secrets:set cronSecret` (any long random string). [apphosting.yaml](apphosting.yaml) passes them to the app.
-4. **Background jobs:** App Hosting stops idle servers and only gives them CPU during requests, so the app doesn't run its every-minute jobs itself there. In Google Cloud **Cloud Scheduler**, create a job that runs every minute (`* * * * *`, time zone Asia/Jerusalem) and sends `GET https://<your app>/api/cron` with the header `Authorization: Bearer <cronSecret>`.
-5. **Address:** after the first rollout, put the app's address in `APP_URL` in [apphosting.yaml](apphosting.yaml) and push again.
-6. **Hasura (optional):** connect a Hasura project to the same Supabase connection string to browse and edit the data, or to give other team apps a GraphQL API. Keep it behind its admin secret: the tables include password hashes, session tokens, medical notes and the app's own secrets (`settings`).
+2. **Vercel:** sign up with GitHub, then **Add New → Project** and import this repository. Vercel deploys the `main` branch. Before deploying, add two environment variables: `DATABASE_URL` (the Supabase string) and `CRON_SECRET` (any long random string). [vercel.json](vercel.json) runs the app in Frankfurt, next to the database.
+3. **Background jobs:** Vercel only gives the server CPU during requests, so the app doesn't run its every-minute jobs itself there (Vercel's own free cron runs once a day). On [cron-job.org](https://cron-job.org) (free), create a job that runs every minute and sends `GET https://<your app>/api/cron` with the header `Authorization: Bearer <CRON_SECRET>`.
+4. **Hasura (optional):** connect a Hasura project to the same Supabase connection string to browse and edit the data, or to give other team apps a GraphQL API. Keep it behind its admin secret: the tables include password hashes, session tokens, medical notes and the app's own secrets (`settings`).
 
-Any other Node host works too (`npm run build`, then `npm start` with `DATABASE_URL` set).
+**Firebase App Hosting** works too (it needs the Blaze plan): create a backend for this repository with the `nodejs24` runtime, set the secrets named in [apphosting.yaml](apphosting.yaml) with `firebase apphosting:secrets:set`, put the app's address in `APP_URL` there, and call `/api/cron` every minute from Cloud Scheduler. Any other Node host works as well (`npm run build`, then `npm start` with `DATABASE_URL` set).
 
 Environment variables:
 
@@ -74,10 +72,10 @@ Environment variables:
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (Supabase's Session pooler). Without it the app uses the local PGlite database. |
 | `DATABASE_PATH` | Folder of the local PGlite database when `DATABASE_URL` isn't set (default `data/pglite`). |
-| `DATABASE_POOL_MAX` | Database connections per server instance (default 5). |
+| `DATABASE_POOL_MAX` | Database connections per server instance (default 2 on Vercel, 5 elsewhere). |
 | `APP_URL` | Public address, e.g. `https://orbit.example.org`. Used in QR codes and invite links. Set this if the server sits behind a proxy and links come out wrong. |
 | `VAPID_SUBJECT` | Contact for the push notification services, e.g. `mailto:captains@yourschool.org`. Defaults to `APP_URL` when it's https. |
-| `CRON_SECRET` | Background jobs (creating meetings, missing-member alerts, automatic check-out) run every minute while the server is up. On hosts that put idle servers to sleep (like App Hosting), call `GET /api/cron` with `Authorization: Bearer <CRON_SECRET>` from an external scheduler. |
+| `CRON_SECRET` | Background jobs (creating meetings, missing-member alerts, automatic check-out) run every minute while the server is up. On serverless hosts (Vercel, App Hosting) they don't: call `GET /api/cron` with `Authorization: Bearer <CRON_SECRET>` every minute from an external scheduler. |
 | `COOKIE_SECURE` | Set to `true` to force secure cookies if your proxy doesn't send `X-Forwarded-Proto`. |
 
 **Installing on a phone:** open the site, then on iPhone tap *Share → Add to Home Screen* (in Safari); on Android tap *Install* when the app suggests it. Members only need to log in once.
