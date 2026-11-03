@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "My profile" };
 
 export default async function ProfilePage() {
   const me = await requireUser();
-  const m = getMember(me.id)!;
+  const m = (await getMember(me.id))!;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">

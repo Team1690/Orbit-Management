@@ -15,10 +15,11 @@ export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   await requireCaptain();
-  const s = getSettings();
-  const seasons = listSeasons();
+  const s = await getSettings();
+  const seasons = await listSeasons();
   const t = today();
   const displayUrl = `${appOrigin(await headers())}/qr?k=${s.display_key}`;
+  const publicKey = await vapidPublicKey();
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -61,7 +62,7 @@ export default async function SettingsPage() {
           Get a notification {s.missing_alert_min} minutes after each meeting starts, listing everyone who hasn&apos;t checked in. Turn this on
           for each phone or computer you want alerts on. On iPhone it works in the app installed on the Home Screen.
         </p>
-        <PushToggle publicKey={vapidPublicKey()} />
+        <PushToggle publicKey={publicKey} />
       </Card>
 
       <Card title="Seasons" actions={<span className="text-xs text-slate-500">Used for hour totals and attendance</span>}>

@@ -29,14 +29,14 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   if (daysAhead === null || daysAhead < 7 || daysAhead > 90) return { error: "Plan meetings 7–90 days ahead." };
   if (rotate === null || rotate < 1 || rotate > 60) return { error: "The QR code must change every 1–60 minutes." };
 
-  setSetting("team_name", teamName);
-  setSetting("timezone", timezone);
-  setSetting("late_grace_min", grace);
-  setSetting("missing_alert_min", alertMin);
-  setSetting("rsvp_open_hours", rsvpHours);
-  setSetting("auto_checkout_time", autoOut);
-  setSetting("schedule_days_ahead", daysAhead);
-  setSetting("qr_rotate_min", rotate);
+  await setSetting("team_name", teamName);
+  await setSetting("timezone", timezone);
+  await setSetting("late_grace_min", grace);
+  await setSetting("missing_alert_min", alertMin);
+  await setSetting("rsvp_open_hours", rsvpHours);
+  await setSetting("auto_checkout_time", autoOut);
+  await setSetting("schedule_days_ahead", daysAhead);
+  await setSetting("qr_rotate_min", rotate);
   revalidatePath("/", "layout");
   return { message: "Settings saved." };
 }
@@ -55,8 +55,8 @@ export async function addSeason(_: FormState, fd: FormData): Promise<FormState> 
   await requireCaptain();
   const s = readSeason(fd);
   if ("error" in s) return { error: s.error };
-  run("INSERT INTO seasons (name, kind, start_date, end_date) VALUES (?, ?, ?, ?)", s.name, s.kind, s.start, s.end);
-  resyncSchedule();
+  await run("INSERT INTO seasons (name, kind, start_date, end_date) VALUES (?, ?, ?, ?)", s.name, s.kind, s.start, s.end);
+  await resyncSchedule();
   revalidatePath("/", "layout");
   return { message: "Season added." };
 }
@@ -65,21 +65,21 @@ export async function updateSeason(id: number, _: FormState, fd: FormData): Prom
   await requireCaptain();
   const s = readSeason(fd);
   if ("error" in s) return { error: s.error };
-  run("UPDATE seasons SET name = ?, kind = ?, start_date = ?, end_date = ? WHERE id = ?", s.name, s.kind, s.start, s.end, id);
-  resyncSchedule();
+  await run("UPDATE seasons SET name = ?, kind = ?, start_date = ?, end_date = ? WHERE id = ?", s.name, s.kind, s.start, s.end, id);
+  await resyncSchedule();
   revalidatePath("/", "layout");
   return { message: "Saved." };
 }
 
 export async function deleteSeason(fd: FormData) {
   await requireCaptain();
-  run("DELETE FROM seasons WHERE id = ?", Number(fd.get("id")));
-  resyncSchedule();
+  await run("DELETE FROM seasons WHERE id = ?", Number(fd.get("id")));
+  await resyncSchedule();
   revalidatePath("/", "layout");
 }
 
 export async function regenerateDisplayKey() {
   await requireCaptain();
-  setSetting("display_key", randomToken());
+  await setSetting("display_key", randomToken());
   revalidatePath("/settings");
 }

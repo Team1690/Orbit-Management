@@ -28,12 +28,12 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
   const subteam = typeof sp.subteam === "string" ? sp.subteam : "";
   const filter = typeof sp.filter === "string" ? sp.filter : "";
 
-  const period = currentPeriod();
-  const hours = hoursByUser(period.from, period.to);
-  const summaries = summarize(meetingsBetween(period.startDate, today(), false));
-  const here = new Set(presentNow().map((p) => p.user_id));
+  const period = await currentPeriod();
+  const hours = await hoursByUser(period.from, period.to);
+  const summaries = await summarize(await meetingsBetween(period.startDate, today(), false));
+  const here = new Set((await presentNow()).map((p) => p.user_id));
 
-  const members = listMembers({ includeInactive: filter === "inactive" }).filter((m) => {
+  const members = (await listMembers({ includeInactive: filter === "inactive" })).filter((m) => {
     if (filter === "inactive" && m.active) return false;
     if (filter === "captains" && m.role !== "captain") return false;
     if (filter === "mentors" && m.role !== "mentor") return false;

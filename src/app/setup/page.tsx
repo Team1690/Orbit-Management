@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Set up" };
 
 export default async function SetupPage() {
   await connection(); // depends on the database, so never prerender at build time
-  if (hasAnyUsers()) redirect("/login");
+  if (await hasAnyUsers()) redirect("/login");
   return (
     <AuthShell title="Set up your team" subtitle="Create the first captain account. You can add everyone else afterwards.">
       <ActionForm action={setupTeam} className="space-y-4">

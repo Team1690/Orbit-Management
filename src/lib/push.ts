@@ -1,22 +1,27 @@
 import webpush from "web-push";
-import { all, run } from "./db";
+import { all, run, tx } from "./db";
 import { getSettings, setSetting } from "./settings";
 
 // Web Push: notifications on captains' phones (installed app on iPhone, any browser on Android).
 
 export type PushPayload = { title: string; body: string; url: string; tag?: string };
 
-function vapidKeys() {
-  const s = getSettings();
+async function vapidKeys() {
+  const s = await getSettings();
   if (s.vapid_public && s.vapid_private) return { publicKey: s.vapid_public, privateKey: s.vapid_private };
-  const keys = webpush.generateVAPIDKeys();
-  setSetting("vapid_public", keys.publicKey);
-  setSetting("vapid_private", keys.privateKey);
-  return keys;
+  // In a transaction so two requests can't each save a different key pair.
+  return tx(async () => {
+    const again = await getSettings();
+    if (again.vapid_public && again.vapid_private) return { publicKey: again.vapid_public, privateKey: again.vapid_private };
+    const keys = webpush.generateVAPIDKeys();
+    await setSetting("vapid_public", keys.publicKey);
+    await setSetting("vapid_private", keys.privateKey);
+    return keys;
+  });
 }
 
-export function vapidPublicKey() {
-  return vapidKeys().publicKey;
+export async function vapidPublicKey() {
+  return (await vapidKeys()).publicKey;
 }
 
 function vapidSubject() {
@@ -25,8 +30,8 @@ function vapidSubject() {
   return "mailto:orbit-management@example.com";
 }
 
-export function saveSubscription(userId: number, sub: { endpoint: string; p256dh: string; auth: string }) {
-  run(
+export async function saveSubscription(userId: number, sub: { endpoint: string; p256dh: string; auth: string }) {
+  await run(
     `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth) VALUES (?, ?, ?, ?)
      ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`,
     sub.endpoint,
@@ -38,12 +43,12 @@ export function saveSubscription(userId: number, sub: { endpoint: string; p256dh
 
 /** Sends to every device where an active captain turned on alerts. Returns how many got it. */
 export async function pushToCaptains(payload: PushPayload) {
-  const subs = all<{ endpoint: string; p256dh: string; auth: string }>(
+  const subs = await all<{ endpoint: string; p256dh: string; auth: string }>(
     `SELECT s.endpoint, s.p256dh, s.auth FROM push_subscriptions s JOIN users u ON u.id = s.user_id
       WHERE u.role = 'captain' AND u.active = 1`,
   );
   if (subs.length === 0) return 0;
-  const vapidDetails = { subject: vapidSubject(), ...vapidKeys() };
+  const vapidDetails = { subject: vapidSubject(), ...(await vapidKeys()) };
   const results = await Promise.all(
     subs.map(async (s) => {
       try {
@@ -56,7 +61,7 @@ export async function pushToCaptains(payload: PushPayload) {
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         // The device unsubscribed or the app was removed: forget it.
-        if (status === 404 || status === 410) run("DELETE FROM push_subscriptions WHERE endpoint = ?", s.endpoint);
+        if (status === 404 || status === 410) await run("DELETE FROM push_subscriptions WHERE endpoint = ?", s.endpoint);
         else console.error("[orbit] push failed", status, err);
         return false;
       }

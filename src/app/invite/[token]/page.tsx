@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Set your password" };
 
 export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
   const { token } = await params;
-  const user = findByInvite(token);
+  const user = await findByInvite(token);
   if (!user) {
     return (
       <AuthShell title="Link expired" subtitle="This link has expired or was already used. Ask a captain to send you a new one.">

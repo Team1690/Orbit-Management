@@ -27,26 +27,26 @@ function MeetingFlags({ m }: { m: Meeting }) {
 
 export default async function MeetingsPage() {
   await requireCaptain();
-  runTick();
-  const { schedule_days_ahead } = getSettings();
+  await runTick();
+  const { schedule_days_ahead } = await getSettings();
   const t = today();
   const now = new Date();
-  const memberCount = one<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND role <> 'mentor'")!.n;
+  const memberCount = (await one<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND role <> 'mentor'"))!.n;
 
-  const upcoming = meetingsBetween(t, addDays(t, schedule_days_ahead)).filter((m) => meetingWindow(m).end > now);
+  const upcoming = (await meetingsBetween(t, addDays(t, schedule_days_ahead))).filter((m) => meetingWindow(m).end > now);
   const counts = new Map<number, { yes: number; late: number; no: number }>();
-  for (const r of rsvpsFor(upcoming.map((m) => m.id))) {
+  for (const r of await rsvpsFor(upcoming.map((m) => m.id))) {
     const c = counts.get(r.meeting_id) ?? { yes: 0, late: 0, no: 0 };
     c[r.response] += 1;
     counts.set(r.meeting_id, c);
   }
 
-  const past = meetingsBetween(addDays(t, -45), t)
+  const past = (await meetingsBetween(addDays(t, -45), t))
     .filter((m) => meetingWindow(m).end <= now)
     .reverse();
-  const pastAttendance = computeAttendance(past.filter((m) => !m.cancelled));
-  const schedule = listSchedule();
-  const seasonNow = seasonKindOn(t);
+  const pastAttendance = await computeAttendance(past.filter((m) => !m.cancelled));
+  const schedule = await listSchedule();
+  const seasonNow = await seasonKindOn(t);
 
   return (
     <div>

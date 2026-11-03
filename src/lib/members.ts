@@ -28,8 +28,8 @@ export type Member = {
 };
 
 const MEMBER_COLUMNS = `id, name, email, role, active, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
-  shirt_size, parent_name, parent_phone, medical_notes, password_hash IS NOT NULL AS has_password, invite_expires_at, created_at,
-  (SELECT group_concat(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
+  shirt_size, parent_name, parent_phone, medical_notes, (password_hash IS NOT NULL)::int AS has_password, invite_expires_at, created_at,
+  (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
 
 /** Every member belongs to one main subteam… */
 export const SUBTEAMS = ["CAD", "Mechanical", "Robot software", "Applications"];
@@ -69,26 +69,27 @@ function withTeams(row: MemberRow): Member {
   return { ...row, teams: row.teams ? row.teams.split("|").sort((a, b) => EXTRA_TEAMS.indexOf(a) - EXTRA_TEAMS.indexOf(b)) : [] };
 }
 
-export function listMembers(opts: { includeInactive?: boolean } = {}) {
-  return all<MemberRow>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE (? OR active = 1) ORDER BY name COLLATE NOCASE`, !!opts.includeInactive).map(
+export async function listMembers(opts: { includeInactive?: boolean } = {}) {
+  return (await all<MemberRow>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE (? = 1 OR active = 1) ORDER BY lower(name)`, !!opts.includeInactive)).map(
     withTeams,
   );
 }
 
 /** Active members who are students (captains and members, not mentors). */
-export function listStudents() {
-  return listMembers().filter((m) => m.role !== "mentor");
+export async function listStudents() {
+  return (await listMembers()).filter((m) => m.role !== "mentor");
 }
 
-export function getMember(id: number) {
-  const row = one<MemberRow>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE id = ?`, id);
+export async function getMember(id: number) {
+  if (!Number.isSafeInteger(id)) return undefined; // e.g. /members/abc
+  const row = await one<MemberRow>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE id = ?`, id);
   return row ? withTeams(row) : undefined;
 }
 
-export function setTeams(userId: number, teams: string[]) {
-  run("DELETE FROM member_teams WHERE user_id = ?", userId);
+export async function setTeams(userId: number, teams: string[]) {
+  await run("DELETE FROM member_teams WHERE user_id = ?", userId);
   for (const team of teams.filter((t) => EXTRA_TEAMS.includes(t))) {
-    run("INSERT INTO member_teams (user_id, team) VALUES (?, ?)", userId, team);
+    await run("INSERT INTO member_teams (user_id, team) VALUES (?, ?)", userId, team);
   }
 }
 
@@ -101,10 +102,10 @@ export function normalizeSubteam(value: string | null | undefined) {
 const INVITE_DAYS = 14;
 
 /** Creates a fresh invite link token for a member (also used to reset a forgotten password). */
-export function createInvite(userId: number) {
+export async function createInvite(userId: number) {
   const token = randomToken(24);
   const expires = new Date(Date.now() + INVITE_DAYS * 86_400_000).toISOString();
-  run("UPDATE users SET invite_hash = ?, invite_expires_at = ? WHERE id = ?", sha256(token), expires, userId);
+  await run("UPDATE users SET invite_hash = ?, invite_expires_at = ? WHERE id = ?", sha256(token), expires, userId);
   return token;
 }
 

@@ -23,8 +23,8 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   await requireCaptain();
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
-  const { id } = run(
-    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  const { id } = await run(
+    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
     m.title,
     m.date,
     m.start,
@@ -41,7 +41,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
   await requireCaptain();
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
-  run(
+  await run(
     "UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ? WHERE id = ?",
     m.title,
     m.date,
@@ -58,13 +58,13 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
 
 export async function setCancelled(fd: FormData) {
   await requireCaptain();
-  run("UPDATE meetings SET cancelled = ? WHERE id = ?", fd.get("cancelled") === "1", Number(fd.get("id")));
+  await run("UPDATE meetings SET cancelled = ? WHERE id = ?", fd.get("cancelled") === "1", Number(fd.get("id")));
   revalidatePath("/", "layout");
 }
 
 export async function deleteMeeting(fd: FormData) {
   await requireCaptain();
-  run("DELETE FROM meetings WHERE id = ?", Number(fd.get("id")));
+  await run("DELETE FROM meetings WHERE id = ?", Number(fd.get("id")));
   revalidatePath("/", "layout");
   redirect("/meetings");
 }
@@ -76,9 +76,9 @@ export async function setAttendance(fd: FormData) {
   const userId = Number(fd.get("user_id"));
   const status = str(fd, "status");
   if (status === "auto") {
-    run("DELETE FROM attendance_overrides WHERE meeting_id = ? AND user_id = ?", meetingId, userId);
+    await run("DELETE FROM attendance_overrides WHERE meeting_id = ? AND user_id = ?", meetingId, userId);
   } else if (["present", "late", "absent"].includes(status)) {
-    run(
+    await run(
       `INSERT INTO attendance_overrides (meeting_id, user_id, status, notice, note, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(meeting_id, user_id) DO UPDATE SET status = excluded.status, notice = excluded.notice, note = excluded.note,
          updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
@@ -104,8 +104,8 @@ export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormS
   const applies = appliesValue === "in_season" || appliesValue === "off_season" ? appliesValue : "all";
   if (!(weekday >= 0 && weekday <= 6)) return { error: "Pick a day." };
   if (!TIME_RE.test(start) || !TIME_RE.test(end) || end <= start) return { error: "Enter a start time and a later end time." };
-  run("INSERT INTO schedule (weekday, start_time, end_time, title, applies) VALUES (?, ?, ?, ?, ?)", weekday, start, end, title, applies);
-  ensureScheduledMeetings();
+  await run("INSERT INTO schedule (weekday, start_time, end_time, title, applies) VALUES (?, ?, ?, ?, ?)", weekday, start, end, title, applies);
+  await ensureScheduledMeetings();
   revalidatePath("/", "layout");
   return { message: "Added. Meetings for the next weeks were created." };
 }
@@ -114,13 +114,13 @@ export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormS
 export async function deleteScheduleRule(fd: FormData) {
   await requireCaptain();
   const id = Number(fd.get("id"));
-  tx(() => {
-    run(
+  await tx(async () => {
+    await run(
       `DELETE FROM meetings WHERE schedule_id = ? AND date > ? AND NOT EXISTS (SELECT 1 FROM rsvps r WHERE r.meeting_id = meetings.id)`,
       id,
       today(),
     );
-    run("DELETE FROM schedule WHERE id = ?", id);
+    await run("DELETE FROM schedule WHERE id = ?", id);
   });
   revalidatePath("/", "layout");
 }

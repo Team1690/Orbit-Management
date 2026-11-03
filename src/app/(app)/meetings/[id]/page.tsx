@@ -19,16 +19,16 @@ const ORDER: Record<AttendanceEntry["status"], number> = { missing: 0, absent: 1
 export default async function MeetingPage({ params }: PageProps<"/meetings/[id]">) {
   await requireCaptain();
   const id = Number((await params).id);
-  const meeting = getMeeting(id);
+  const meeting = await getMeeting(id);
   if (!meeting) notFound();
 
   const { start, end } = meetingWindow(meeting);
   const now = new Date();
   const live = now >= start && now < end;
   const started = now >= start;
-  const { late_grace_min } = getSettings();
-  const members = new Map(listMembers({ includeInactive: true }).map((m) => [m.id, m]));
-  const rows = [...(computeAttendance([meeting]).get(id) ?? new Map<number, AttendanceEntry>())].sort(
+  const { late_grace_min } = await getSettings();
+  const members = new Map((await listMembers({ includeInactive: true })).map((m) => [m.id, m]));
+  const rows = [...((await computeAttendance([meeting])).get(id) ?? new Map<number, AttendanceEntry>())].sort(
     ([a, ea], [b, eb]) => ORDER[ea.status] - ORDER[eb.status] || members.get(a)!.name.localeCompare(members.get(b)!.name),
   );
 

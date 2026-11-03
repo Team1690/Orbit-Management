@@ -1,5 +1,5 @@
 import { computeAttendance } from "./attendance";
-import { all, one, run } from "./db";
+import { all, run } from "./db";
 import { fmtTime } from "./format";
 import { meetingWindow, meetingsOn } from "./meetings";
 import { pushToCaptains } from "./push";
@@ -8,8 +8,8 @@ import { localParts, zonedToUtc } from "./timeutil";
 
 export type Alert = { id: number; kind: string; meeting_id: number | null; title: string; body: string; created_at: string };
 
-export function alertsToday() {
-  const { timezone } = getSettings();
+export async function alertsToday() {
+  const { timezone } = await getSettings();
   const start = zonedToUtc(localParts(new Date(), timezone).date, "00:00", timezone);
   return all<Alert>("SELECT * FROM alerts WHERE created_at >= ? ORDER BY created_at DESC", start.toISOString());
 }
@@ -22,17 +22,19 @@ function nameList(names: string[]) {
  * `missing_alert_min` minutes after each required meeting starts, tells captains who hasn't
  * checked in yet (in the app, and as a push notification). Sent once per meeting.
  */
-export function checkMissingAlerts(now = new Date()) {
-  const { missing_alert_min, timezone } = getSettings();
-  for (const m of meetingsOn(localParts(now, timezone).date)) {
+export async function checkMissingAlerts(now = new Date()) {
+  const { missing_alert_min, timezone } = await getSettings();
+  for (const m of await meetingsOn(localParts(now, timezone).date)) {
     if (!m.mandatory || m.missing_alert_at) continue;
     const { start, end } = meetingWindow(m);
     if (now.getTime() < start.getTime() + missing_alert_min * 60_000 || now >= end) continue;
     // Claim the meeting first so two ticks can't both send.
-    if (run("UPDATE meetings SET missing_alert_at = ? WHERE id = ? AND missing_alert_at IS NULL", now.toISOString(), m.id).changes === 0) continue;
+    const claim = await run("UPDATE meetings SET missing_alert_at = ? WHERE id = ? AND missing_alert_at IS NULL", now.toISOString(), m.id);
+    if (claim.changes === 0) continue;
 
-    const rows = [...(computeAttendance([m]).get(m.id) ?? new Map())];
-    const name = (id: number) => one<{ name: string }>("SELECT name FROM users WHERE id = ?", id)?.name ?? "?";
+    const rows = [...((await computeAttendance([m])).get(m.id) ?? new Map())];
+    const names = new Map((await all<{ id: number; name: string }>("SELECT id, name FROM users")).map((u) => [u.id, u.name]));
+    const name = (id: number) => names.get(id) ?? "?";
     const missing = rows.filter(([, e]) => e.status === "missing");
     const noNotice = missing.filter(([, e]) => !e.notice).map(([id]) => name(id));
     const notified = missing.filter(([, e]) => e.notice).map(([id]) => name(id));
@@ -50,8 +52,9 @@ export function checkMissingAlerts(now = new Date()) {
     ].filter(Boolean);
     const body = parts.join(" ") || `All ${rows.length} students are here.`;
 
-    run("INSERT INTO alerts (kind, meeting_id, title, body, created_at) VALUES ('missing', ?, ?, ?, ?)", m.id, title, body, now.toISOString());
-    pushToCaptains({ title, body, url: `/meetings/${m.id}`, tag: `missing-${m.id}` }).catch((err) =>
+    await run("INSERT INTO alerts (kind, meeting_id, title, body, created_at) VALUES ('missing', ?, ?, ?, ?)", m.id, title, body, now.toISOString());
+    // Awaited: a serverless host may pause the server as soon as the request that ran this tick ends.
+    await pushToCaptains({ title, body, url: `/meetings/${m.id}`, tag: `missing-${m.id}` }).catch((err) =>
       console.error("[orbit] missing-members push failed", err),
     );
   }

@@ -45,11 +45,11 @@ function NameList({ ids, members, detail }: { ids: number[]; members: Map<number
   );
 }
 
-function MeetingPanel({ meeting, members }: { meeting: Meeting; members: Map<number, Member> }) {
+async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: Map<number, Member> }) {
   const { start, end } = meetingWindow(meeting);
   const now = new Date();
   const started = now >= start;
-  const rows = [...(computeAttendance([meeting]).get(meeting.id) ?? new Map<number, AttendanceEntry>())];
+  const rows = [...((await computeAttendance([meeting])).get(meeting.id) ?? new Map<number, AttendanceEntry>())];
   const by = (pred: (e: AttendanceEntry) => boolean) => rows.filter(([, e]) => pred(e)).map(([id]) => id);
 
   const coming = by((e) => e.rsvp?.response === "yes");
@@ -175,39 +175,44 @@ function MeetingPanel({ meeting, members }: { meeting: Meeting; members: Map<num
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   await requireCaptain();
-  runTick();
+  await runTick();
   const { welcome } = await searchParams;
 
-  const members = listMembers();
+  const t = today();
+  const period = await currentPeriod();
+  const [members, present, alerts, { missing_alert_min }, mentorPlanToday, hours, meeting, summaries, recentSummaries, autoClosed, publicKey] =
+    await Promise.all([
+      listMembers(),
+      presentNow(),
+      alertsToday(),
+      getSettings(),
+      mentorPlan(t, 1),
+      hoursByUser(period.from, period.to),
+      currentOrNextMeeting(),
+      meetingsBetween(period.startDate, t, false).then((ms) => summarize(ms)),
+      meetingsBetween(addDays(t, -14), t, false).then((ms) => summarize(ms)),
+      all<{ id: number; user_id: number; check_in: string; check_out: string }>(
+        "SELECT id, user_id, check_in, check_out FROM visits WHERE out_method = 'auto' AND check_in > ? ORDER BY check_in DESC LIMIT 10",
+        new Date(Date.now() - 7 * 86_400_000).toISOString(),
+      ),
+      vapidPublicKey(),
+    ]);
   const memberMap = new Map(members.map((m) => [m.id, m]));
   const students = new Set(members.filter((m) => m.role !== "mentor").map((m) => m.id));
-  const present = presentNow();
   const studentsHere = present.filter((p) => students.has(p.user_id)).length;
   const mentorsHere = present.length - studentsHere;
-  const alerts = alertsToday();
-  const { missing_alert_min } = getSettings();
-  const mentorsToday = mentorPlan(today(), 1)[0].entries;
+  const mentorsToday = mentorPlanToday[0].entries;
   const presentIds = new Set(present.map((p) => p.user_id));
-  const period = currentPeriod();
-  const hours = hoursByUser(period.from, period.to);
   const teamMs = [...hours].filter(([id]) => students.has(id)).reduce((sum, [, h]) => sum + h.ms, 0);
-  const meeting = currentOrNextMeeting();
-  const t = today();
 
-  const summaries = summarize(meetingsBetween(period.startDate, t, false));
   const lowAttendance = [...summaries]
     .filter(([id, s]) => memberMap.has(id) && s.meetings >= 3 && (s.rate ?? 1) < 0.7)
     .sort((a, b) => (a[1].rate ?? 0) - (b[1].rate ?? 0))
     .slice(0, 8);
-  const recentSummaries = summarize(meetingsBetween(addDays(t, -14), t, false));
   const noNotice = [...recentSummaries]
     .map(([id, s]) => [id, s.absent - s.absentNotice] as const)
     .filter(([id, n]) => n > 0 && memberMap.has(id))
     .sort((a, b) => b[1] - a[1]);
-  const autoClosed = all<{ id: number; user_id: number; check_in: string; check_out: string }>(
-    "SELECT id, user_id, check_in, check_out FROM visits WHERE out_method = 'auto' AND check_in > ? ORDER BY check_in DESC LIMIT 10",
-    new Date(Date.now() - 7 * 86_400_000).toISOString(),
-  );
   const notJoined = members.filter((m) => !m.has_password);
   const leaders = [...hours]
     .filter(([id]) => students.has(id))
@@ -345,7 +350,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                 ))}
               </ul>
             )}
-            <PushToggle publicKey={vapidPublicKey()} />
+            <PushToggle publicKey={publicKey} />
           </Card>
 
           <Card title={<span className="flex items-center gap-1.5"><AlertIcon width={16} height={16} className="text-amber-500" /> Needs attention</span>}>
@@ -458,7 +463,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   );
 }
 
-function avgRate(summaries: ReturnType<typeof summarize>, members: Map<number, Member>) {
+function avgRate(summaries: Awaited<ReturnType<typeof summarize>>, members: Map<number, Member>) {
   const rates = [...summaries].filter(([id, s]) => members.has(id) && s.rate !== null).map(([, s]) => s.rate!);
   return rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
 }

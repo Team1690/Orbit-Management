@@ -17,8 +17,8 @@ function safeEqual(a: string, b: string) {
   return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
 }
 
-export function currentQrCode(now = Date.now()) {
-  const { qr_secret, qr_rotate_min } = getSettings();
+export async function currentQrCode(now = Date.now()) {
+  const { qr_secret, qr_rotate_min } = await getSettings();
   const period = qr_rotate_min * 60_000;
   const window = Math.floor(now / period);
   return {
@@ -27,8 +27,8 @@ export function currentQrCode(now = Date.now()) {
   };
 }
 
-export function verifyQrCode(code: string, now = Date.now()) {
-  const { qr_secret, qr_rotate_min } = getSettings();
+export async function verifyQrCode(code: string, now = Date.now()) {
+  const { qr_secret, qr_rotate_min } = await getSettings();
   const [w, sig] = code.split(".");
   const window = parseInt(w ?? "", 36);
   if (!Number.isSafeInteger(window) || !sig) return false;
@@ -40,16 +40,16 @@ export function verifyQrCode(code: string, now = Date.now()) {
 }
 
 /** Remembers a valid scan in a cookie while the member logs in. */
-export function pendingCheckinToken(now = Date.now()) {
+export async function pendingCheckinToken(now = Date.now()) {
   const exp = now + PENDING_MS;
-  return `${exp}.${sign(getSettings().qr_secret, `pending:${exp}`)}`;
+  return `${exp}.${sign((await getSettings()).qr_secret, `pending:${exp}`)}`;
 }
 
-export function verifyPendingCheckin(token: string | undefined, now = Date.now()) {
+export async function verifyPendingCheckin(token: string | undefined, now = Date.now()) {
   if (!token) return false;
   const [exp, sig] = token.split(".");
   if (!exp || !sig || Number(exp) < now) return false;
-  return safeEqual(sig, sign(getSettings().qr_secret, `pending:${exp}`));
+  return safeEqual(sig, sign((await getSettings()).qr_secret, `pending:${exp}`));
 }
 
 export const PENDING_COOKIE = "orbit_pending_checkin";

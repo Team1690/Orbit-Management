@@ -33,9 +33,9 @@ export function seasonPeriod(s: Season) {
 }
 
 /** The season containing today, or the last 90 days when no season covers today. */
-export function currentPeriod(): Period {
+export async function currentPeriod(): Promise<Period> {
   const t = today();
-  const season = one<Season>("SELECT * FROM seasons WHERE start_date <= ? AND end_date >= ? ORDER BY start_date DESC LIMIT 1", t, t);
+  const season = await one<Season>("SELECT * FROM seasons WHERE start_date <= ? AND end_date >= ? ORDER BY start_date DESC LIMIT 1", t, t);
   if (season) return seasonPeriod(season);
   return periodFromDates(addDays(t, -89), t, "Last 90 days");
 }
@@ -48,12 +48,13 @@ export function currentSeason() {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Reads ?season=ID or ?from=YYYY-MM-DD&to=YYYY-MM-DD, falling back to the current period. */
-export function periodFromSearch(sp: { season?: string; from?: string; to?: string }): Period {
+export async function periodFromSearch(sp: { season?: string; from?: string; to?: string }): Promise<Period> {
   if (sp.from && sp.to && DATE_RE.test(sp.from) && DATE_RE.test(sp.to) && sp.from <= sp.to) {
     return periodFromDates(sp.from, sp.to);
   }
-  if (sp.season) {
-    const s = one<Season>("SELECT * FROM seasons WHERE id = ?", Number(sp.season));
+  const seasonId = Number(sp.season);
+  if (sp.season && Number.isSafeInteger(seasonId)) {
+    const s = await one<Season>("SELECT * FROM seasons WHERE id = ?", seasonId);
     if (s) return seasonPeriod(s);
   }
   return currentPeriod();

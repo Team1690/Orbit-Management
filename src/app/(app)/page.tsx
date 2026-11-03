@@ -23,33 +23,33 @@ const FLASH = {
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const user = await requireUser();
-  runTick();
+  await runTick();
   const { ci } = await searchParams;
   const flash = typeof ci === "string" && ci in FLASH ? FLASH[ci as keyof typeof FLASH] : null;
 
-  const visit = openVisit(user.id);
-  const period = currentPeriod();
+  const visit = await openVisit(user.id);
+  const period = await currentPeriod();
   const week = thisWeek();
-  const periodHours = userHours(user.id, period.from, period.to);
-  const weekHours = userHours(user.id, week.from, week.to);
-  const summary = summaryFor(summarize(meetingsBetween(period.startDate, period.endDate, false), [user.id]), user.id);
+  const periodHours = await userHours(user.id, period.from, period.to);
+  const weekHours = await userHours(user.id, week.from, week.to);
+  const summary = summaryFor(await summarize(await meetingsBetween(period.startDate, period.endDate, false), [user.id]), user.id);
 
-  const rsvpMeetings = openRsvpMeetings();
-  const myRsvps = new Map(rsvpsFor(rsvpMeetings.map((m) => m.id)).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
+  const rsvpMeetings = await openRsvpMeetings();
+  const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
   const t = today();
-  const upcoming = meetingsBetween(t, addDays(t, 13), false).filter((m) => meetingWindow(m).end > new Date()).slice(0, 6);
-  const upcomingRsvps = new Map(rsvpsFor(upcoming.map((m) => m.id)).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
+  const upcoming = (await meetingsBetween(t, addDays(t, 13), false)).filter((m) => meetingWindow(m).end > new Date()).slice(0, 6);
+  const upcomingRsvps = new Map((await rsvpsFor(upcoming.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
-  const past = meetingsBetween(addDays(t, -30), t, false)
+  const past = (await meetingsBetween(addDays(t, -30), t, false))
     .filter((m) => meetingWindow(m).end <= new Date())
     .reverse()
     .slice(0, 6);
-  const pastAttendance = computeAttendance(past, [user.id]);
-  const visits = recentVisits(user.id, 5);
+  const pastAttendance = await computeAttendance(past, [user.id]);
+  const visits = await recentVisits(user.id, 5);
 
   const mentor = user.role === "mentor";
-  const plan = mentorPlan(t, 7);
+  const plan = await mentorPlan(t, 7);
   const mentorsToday = plan[0].entries.filter((e) => !e.skipped && e.mentorId !== user.id);
   const myVisits = plan.flatMap((d) => d.entries.filter((e) => e.mentorId === user.id).map((e) => ({ date: d.date, ...e })));
 

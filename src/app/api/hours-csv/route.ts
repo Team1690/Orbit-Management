@@ -14,10 +14,10 @@ export async function GET(request: NextRequest) {
   if (user?.role !== "captain") return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const sp = request.nextUrl.searchParams;
-  const period = periodFromSearch({ season: sp.get("season") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined });
-  const hours = hoursByUser(period.from, period.to);
+  const period = await periodFromSearch({ season: sp.get("season") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined });
+  const hours = await hoursByUser(period.from, period.to);
   const lines = [["Name", "Email", "Subteam", "Grade", "Hours", "Visits"].join(",")];
-  for (const m of listStudents()) {
+  for (const m of await listStudents()) {
     const h = hours.get(m.id) ?? { ms: 0, visits: 0 };
     lines.push([m.name, m.email, m.subteam, m.grade, (h.ms / 3_600_000).toFixed(2), h.visits].map(csvCell).join(","));
   }

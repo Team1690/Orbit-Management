@@ -32,23 +32,23 @@ function inList(n: number) {
 }
 
 /** Attendance for each meeting × active student (not mentors) who had joined by the meeting. */
-export function computeAttendance(meetings: Meeting[], memberIds?: number[]) {
+export async function computeAttendance(meetings: Meeting[], memberIds?: number[]) {
   const result = new Map<number, Map<number, AttendanceEntry>>();
   if (meetings.length === 0) return result;
 
   const now = Date.now();
-  const graceMs = getSettings().late_grace_min * 60_000;
+  const graceMs = (await getSettings()).late_grace_min * 60_000;
   const windows = new Map(meetings.map((m) => [m.id, meetingWindow(m)]));
   const minStart = Math.min(...[...windows.values()].map((w) => w.start.getTime()));
   const maxEnd = Math.max(...[...windows.values()].map((w) => w.end.getTime()));
   const ids = meetings.map((m) => m.id);
 
-  const members = memberIds
-    ? all<Member>(`SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor' AND id IN (${inList(memberIds.length)})`, ...memberIds)
-    : all<Member>("SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor'");
+  const members = memberIds?.length === 0 ? [] : memberIds
+    ? await all<Member>(`SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor' AND id IN (${inList(memberIds.length)})`, ...memberIds)
+    : await all<Member>("SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor'");
 
   const visitsByUser = new Map<number, Visit[]>();
-  for (const v of all<Visit>(
+  for (const v of await all<Visit>(
     "SELECT * FROM visits WHERE check_in < ? AND (check_out IS NULL OR check_out > ?)",
     new Date(maxEnd).toISOString(),
     new Date(minStart).toISOString(),
@@ -58,9 +58,9 @@ export function computeAttendance(meetings: Meeting[], memberIds?: number[]) {
     visitsByUser.set(v.user_id, list);
   }
 
-  const rsvps = new Map(rsvpsFor(ids).map((r) => [`${r.meeting_id}:${r.user_id}`, r]));
+  const rsvps = new Map((await rsvpsFor(ids)).map((r) => [`${r.meeting_id}:${r.user_id}`, r]));
   const overrides = new Map(
-    all<Override>(`SELECT * FROM attendance_overrides WHERE meeting_id IN (${inList(ids.length)})`, ...ids).map((o) => [
+    (await all<Override>(`SELECT * FROM attendance_overrides WHERE meeting_id IN (${inList(ids.length)})`, ...ids)).map((o) => [
       `${o.meeting_id}:${o.user_id}`,
       o,
     ]),
@@ -137,10 +137,10 @@ const emptySummary = (): AttendanceSummary => ({
 });
 
 /** Per-member totals over finished, mandatory, non-cancelled meetings. */
-export function summarize(meetings: Meeting[], memberIds?: number[]) {
+export async function summarize(meetings: Meeting[], memberIds?: number[]) {
   const now = Date.now();
   const finished = meetings.filter((m) => m.mandatory && !m.cancelled && meetingWindow(m).end.getTime() <= now);
-  const attendance = computeAttendance(finished, memberIds);
+  const attendance = await computeAttendance(finished, memberIds);
   const totals = new Map<number, AttendanceSummary>();
   for (const row of attendance.values()) {
     for (const [userId, e] of row) {

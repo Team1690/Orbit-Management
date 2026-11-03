@@ -7,7 +7,7 @@ import { getMeeting, meetingWindow, setRsvp, type RsvpResponse } from "@/lib/mee
 
 export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser();
-  const meeting = getMeeting(Number(fd.get("meeting_id")));
+  const meeting = await getMeeting(Number(fd.get("meeting_id")));
   const response = str(fd, "response") as RsvpResponse;
   const note = str(fd, "note").slice(0, 300) || null;
   if (!meeting || meeting.cancelled || !meeting.rsvp) return { error: "This meeting isn't taking RSVPs." };
@@ -16,7 +16,7 @@ export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState
   if (response !== "yes" && !note) {
     return { error: response === "late" ? "Say roughly when you'll arrive." : "Tell the captains why you can't come." };
   }
-  setRsvp(meeting.id, user.id, response, response === "yes" ? null : note);
+  await setRsvp(meeting.id, user.id, response, response === "yes" ? null : note);
   revalidatePath("/", "layout");
   return { message: "Thanks, your answer was saved." };
 }

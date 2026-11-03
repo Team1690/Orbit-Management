@@ -9,7 +9,8 @@ const lanAddresses = Object.values(os.networkInterfaces())
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: lanAddresses,
-  serverExternalPackages: ["web-push"],
+  // PGlite loads its WebAssembly files from its own folder, so it must not be bundled.
+  serverExternalPackages: ["web-push", "pg", "@electric-sql/pglite"],
   // The service worker must never be served stale, or phones keep an old version.
   async headers() {
     return [

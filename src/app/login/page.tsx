@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Log in" };
 
 export default async function LoginPage() {
   await connection(); // depends on the database, so never prerender at build time
-  if (!hasAnyUsers()) redirect("/setup");
+  if (!(await hasAnyUsers())) redirect("/setup");
   const user = await getUser();
   if (user) redirect(homeFor(user));
   const pendingCheckin = (await cookies()).has(PENDING_COOKIE);
