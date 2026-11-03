@@ -10,9 +10,9 @@ import { type Visit } from "./visits";
  * end of that day's last meeting if they were there for it, otherwise until the cut-off.
  * These visits are marked "auto" so captains can review them.
  */
-export function autoCheckout(now = new Date()) {
-  const { timezone, auto_checkout_time } = getSettings();
-  for (const v of all<Visit>("SELECT * FROM visits WHERE check_out IS NULL")) {
+export async function autoCheckout(now = new Date()) {
+  const { timezone, auto_checkout_time } = await getSettings();
+  for (const v of await all<Visit>("SELECT * FROM visits WHERE check_out IS NULL")) {
     const checkIn = new Date(v.check_in);
     const day = localParts(checkIn, timezone).date;
     let cutoff = zonedToUtc(day, auto_checkout_time, timezone);
@@ -21,39 +21,37 @@ export function autoCheckout(now = new Date()) {
 
     let credit = cutoff;
     let lastMeetingEnd: Date | null = null;
-    for (const m of meetingsOn(day)) {
+    for (const m of await meetingsOn(day)) {
       const { end } = meetingWindow(m);
       if (end > checkIn && end <= cutoff && (!lastMeetingEnd || end > lastMeetingEnd)) lastMeetingEnd = end;
     }
     if (lastMeetingEnd) credit = lastMeetingEnd;
-    run("UPDATE visits SET check_out = ?, out_method = 'auto' WHERE id = ? AND check_out IS NULL", credit.toISOString(), v.id);
+    await run("UPDATE visits SET check_out = ?, out_method = 'auto' WHERE id = ? AND check_out IS NULL", credit.toISOString(), v.id);
   }
 }
 
 let lastTick = 0;
 
 /** Housekeeping that must happen over time. Safe to call often; it throttles itself. */
-export function runTick(force = false) {
+export async function runTick(force = false) {
   const now = Date.now();
   if (!force && now - lastTick < 30_000) return;
   lastTick = now;
-  ensureScheduledMeetings(new Date(now));
-  checkMissingAlerts(new Date(now));
-  autoCheckout(new Date(now));
-  run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
+  await ensureScheduledMeetings(new Date(now));
+  await checkMissingAlerts(new Date(now));
+  await autoCheckout(new Date(now));
+  await run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
 }
 
+/** Runs the jobs every minute while the server is up. */
 export function startBackgroundJobs() {
+  // Cloud Run (Firebase App Hosting) only gives the server CPU while it handles a request, so a
+  // timer could stall mid-transaction and hold the lock. There, Cloud Scheduler calls /api/cron instead.
+  if (process.env.K_SERVICE) return;
   const g = globalThis as typeof globalThis & { __orbitTimer?: NodeJS.Timeout };
   if (g.__orbitTimer) return;
-  const tick = () => {
-    try {
-      runTick(true);
-    } catch (err) {
-      console.error("[orbit] background tick failed", err);
-    }
-  };
+  const tick = () => runTick(true).catch((err) => console.error("[orbit] background tick failed", err));
   g.__orbitTimer = setInterval(tick, 60_000);
   g.__orbitTimer.unref();
-  tick();
+  void tick();
 }

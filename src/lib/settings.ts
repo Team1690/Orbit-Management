@@ -1,5 +1,5 @@
 import { randomToken } from "./password";
-import { all, one, run } from "./db";
+import { all, run } from "./db";
 
 export type Settings = {
   team_name: string;
@@ -37,30 +37,39 @@ const DEFAULTS: Omit<Settings, "qr_secret" | "display_key"> = {
 
 const NUMERIC = new Set(["late_grace_min", "missing_alert_min", "rsvp_open_hours", "schedule_days_ahead", "qr_rotate_min"]);
 
-export function getSettings(): Settings {
-  const rows = all<{ key: string; value: string }>("SELECT key, value FROM settings");
+// The last settings read, so tz() can stay synchronous for the date helpers. Refreshed by every
+// getSettings() call and loaded at startup (instrumentation.ts). Kept on globalThis because
+// instrumentation and the pages load separate copies of this module.
+const g = globalThis as typeof globalThis & { __orbitSettings?: Settings };
+
+export async function getSettings(): Promise<Settings> {
+  const rows = await all<{ key: string; value: string }>("SELECT key, value FROM settings");
   const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-  for (const key of ["qr_secret", "display_key"] as const) {
-    if (!stored[key]) {
-      stored[key] = randomToken();
-      setSetting(key, stored[key]);
+  const missing = (["qr_secret", "display_key"] as const).filter((key) => !stored[key]);
+  if (missing.length) {
+    // Another server instance may be creating them at the same moment: keep whichever is saved first.
+    for (const key of missing) {
+      await run("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING", key, randomToken());
     }
+    return getSettings();
   }
   const out: Record<string, string | number> = { ...DEFAULTS };
   for (const [key, value] of Object.entries(stored)) {
     out[key] = NUMERIC.has(key) ? Number(value) : value;
   }
-  return out as Settings;
+  return (g.__orbitSettings = out as Settings);
 }
 
-export function setSetting(key: keyof Settings, value: string | number) {
-  run(
-    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+export async function setSetting(key: keyof Settings, value: string | number) {
+  await run(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
     key,
     String(value),
   );
+  if (g.__orbitSettings) g.__orbitSettings = { ...g.__orbitSettings, [key]: NUMERIC.has(key) ? Number(value) : value };
 }
 
+/** The team's time zone, from the most recently read settings. */
 export function tz() {
-  return one<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'")?.value ?? DEFAULTS.timezone;
+  return g.__orbitSettings?.timezone ?? DEFAULTS.timezone;
 }

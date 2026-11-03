@@ -34,30 +34,32 @@ function Detail({ label, value }: { label: string; value: string | number | null
 export default async function MemberPage({ params }: PageProps<"/members/[id]">) {
   await requireCaptain();
   const id = Number((await params).id);
-  const m = getMember(id);
+  const m = await getMember(id);
   if (!m) notFound();
 
   const zone = tz();
   const t = today();
-  const period = currentPeriod();
+  const period = await currentPeriod();
   const week = thisWeek();
-  const periodHours = userHours(id, period.from, period.to);
-  const weekHours = userHours(id, week.from, week.to);
-  const allTime = userHours(id, new Date(0), new Date(Date.now() + 86_400_000));
-  const periodMeetings = meetingsBetween(period.startDate, t, false);
-  const s = summaryFor(summarize(periodMeetings, [id]), id);
+  const periodHours = await userHours(id, period.from, period.to);
+  const weekHours = await userHours(id, week.from, week.to);
+  const allTime = await userHours(id, new Date(0), new Date(Date.now() + 86_400_000));
+  const periodMeetings = await meetingsBetween(period.startDate, t, false);
+  const s = summaryFor(await summarize(periodMeetings, [id]), id);
 
   const history = periodMeetings
     .filter((mt) => meetingWindow(mt).start <= new Date())
     .reverse()
     .slice(0, 20);
-  const attendance = computeAttendance(history, [id]);
-  const visit = openVisit(id);
-  const visits = recentVisits(id, 15);
-  const notes = notesFor(id);
-  const seasons = listSeasons().map((season) => ({ season, hours: userHours(id, seasonPeriod(season).from, seasonPeriod(season).to) }));
+  const attendance = await computeAttendance(history, [id]);
+  const visit = await openVisit(id);
+  const visits = await recentVisits(id, 15);
+  const notes = await notesFor(id);
+  const seasons = await Promise.all(
+    (await listSeasons()).map(async (season) => ({ season, hours: await userHours(id, seasonPeriod(season).from, seasonPeriod(season).to) })),
+  );
   const isMentor = m.role === "mentor";
-  const weeklyTimes = isMentor ? mentorSlots(id) : [];
+  const weeklyTimes = isMentor ? await mentorSlots(id) : [];
 
   return (
     <div>

@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Edit member" };
 export default async function EditMemberPage({ params }: PageProps<"/members/[id]/edit">) {
   await requireCaptain();
   const id = Number((await params).id);
-  const m = getMember(id);
+  const m = await getMember(id);
   if (!m) notFound();
 
   return (

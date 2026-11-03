@@ -14,19 +14,24 @@ export function openVisit(userId: number) {
 }
 
 export function checkIn(userId: number, method: Visit["in_method"], at = new Date()) {
-  return tx(() => {
-    const existing = openVisit(userId);
+  return tx(async () => {
+    const existing = await openVisit(userId);
     if (existing) return { visit: existing, already: true };
-    const { id } = run("INSERT INTO visits (user_id, check_in, in_method) VALUES (?, ?, ?)", userId, at.toISOString(), method);
-    return { visit: one<Visit>("SELECT * FROM visits WHERE id = ?", id)!, already: false };
+    const visit = await one<Visit>(
+      "INSERT INTO visits (user_id, check_in, in_method) VALUES (?, ?, ?) RETURNING *",
+      userId,
+      at.toISOString(),
+      method,
+    );
+    return { visit: visit!, already: false };
   });
 }
 
-export function checkOut(userId: number, method: NonNullable<Visit["out_method"]>, at = new Date()) {
-  const open = openVisit(userId);
+export async function checkOut(userId: number, method: NonNullable<Visit["out_method"]>, at = new Date()) {
+  const open = await openVisit(userId);
   if (!open) return null;
   const out = new Date(Math.max(at.getTime(), Date.parse(open.check_in)));
-  run("UPDATE visits SET check_out = ?, out_method = ? WHERE id = ?", out.toISOString(), method, open.id);
+  await run("UPDATE visits SET check_out = ?, out_method = ? WHERE id = ?", out.toISOString(), method, open.id);
   return open;
 }
 
@@ -59,7 +64,7 @@ export function visitsBetween(from: Date, to: Date, userId?: number) {
   return all<Visit>(
     `SELECT * FROM visits
       WHERE check_in < ? AND (check_out IS NULL OR check_out > ?)
-        AND (? IS NULL OR user_id = ?)
+        AND (?::int IS NULL OR user_id = ?)
       ORDER BY check_in`,
     to.toISOString(),
     from.toISOString(),
@@ -70,10 +75,10 @@ export function visitsBetween(from: Date, to: Date, userId?: number) {
 
 export type HoursTotal = { ms: number; visits: number };
 
-export function hoursByUser(from: Date, to: Date) {
+export async function hoursByUser(from: Date, to: Date) {
   const totals = new Map<number, HoursTotal>();
   const now = Date.now();
-  for (const v of visitsBetween(from, to)) {
+  for (const v of await visitsBetween(from, to)) {
     const ms = overlapMs(v, from.getTime(), to.getTime(), now);
     const t = totals.get(v.user_id) ?? { ms: 0, visits: 0 };
     t.ms += ms;
@@ -83,10 +88,10 @@ export function hoursByUser(from: Date, to: Date) {
   return totals;
 }
 
-export function userHours(userId: number, from: Date, to: Date): HoursTotal {
+export async function userHours(userId: number, from: Date, to: Date): Promise<HoursTotal> {
   const now = Date.now();
   let ms = 0;
-  const visits = visitsBetween(from, to, userId);
+  const visits = await visitsBetween(from, to, userId);
   for (const v of visits) ms += overlapMs(v, from.getTime(), to.getTime(), now);
   return { ms, visits: visits.length };
 }

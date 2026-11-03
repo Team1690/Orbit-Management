@@ -45,7 +45,7 @@ export type PlanEntry = {
 
 export function listMentors() {
   return all<{ id: number; name: string; subteam: string | null }>(
-    "SELECT id, name, subteam FROM users WHERE role = 'mentor' AND active = 1 ORDER BY name COLLATE NOCASE",
+    "SELECT id, name, subteam FROM users WHERE role = 'mentor' AND active = 1 ORDER BY lower(name)",
   );
 }
 
@@ -53,7 +53,7 @@ export function mentorSlots(userId?: number) {
   return all<MentorSlot>(
     `SELECT s.id, s.user_id, u.name, u.subteam, s.weekday, s.start_time, s.end_time, s.note
        FROM mentor_slots s JOIN users u ON u.id = s.user_id
-      WHERE u.role = 'mentor' AND u.active = 1 AND (? IS NULL OR s.user_id = ?)
+      WHERE u.role = 'mentor' AND u.active = 1 AND (?::int IS NULL OR s.user_id = ?)
       ORDER BY s.weekday, s.start_time, u.name`,
     userId ?? null,
     userId ?? null,
@@ -61,10 +61,10 @@ export function mentorSlots(userId?: number) {
 }
 
 /** Who is expected on each day from `fromDate` for `days` days, earliest first. */
-export function mentorPlan(fromDate: string, days: number) {
+export async function mentorPlan(fromDate: string, days: number) {
   const toDate = addDays(fromDate, days - 1);
-  const slots = mentorSlots();
-  const changes = all<MentorChange>(
+  const slots = await mentorSlots();
+  const changes = await all<MentorChange>(
     `SELECT c.id, c.user_id, u.name, u.subteam, c.date, c.kind, c.slot_id, c.start_time, c.end_time, c.note
        FROM mentor_changes c JOIN users u ON u.id = c.user_id
       WHERE u.role = 'mentor' AND u.active = 1 AND c.date BETWEEN ? AND ?`,

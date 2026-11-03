@@ -10,12 +10,12 @@ import { getSettings } from "@/lib/settings";
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("k");
   const user = await getUser();
-  if (user?.role !== "captain" && (!key || key !== getSettings().display_key)) {
+  if (user?.role !== "captain" && (!key || key !== (await getSettings()).display_key)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const { code, msUntilNext } = currentQrCode();
+  const { code, msUntilNext } = await currentQrCode();
   const url = `${appOrigin(request.headers)}/checkin?c=${code}`;
   const svg = await QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 1, color: { dark: "#0f1e5c", light: "#ffffff" } });
-  const present = one<{ n: number }>("SELECT COUNT(*) AS n FROM visits WHERE check_out IS NULL")!.n;
+  const present = (await one<{ n: number }>("SELECT COUNT(*) AS n FROM visits WHERE check_out IS NULL"))!.n;
   return NextResponse.json({ svg, url, msUntilNext, present }, { headers: { "Cache-Control": "no-store" } });
 }

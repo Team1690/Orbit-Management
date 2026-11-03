@@ -1,0 +1,30 @@
+# Firebase App Hosting settings. Create the two secrets before the first rollout:
+#   firebase apphosting:secrets:set databaseUrl   (Supabase → Connect → Session pooler string, with your password)
+#   firebase apphosting:secrets:set cronSecret    (any long random string; the same one goes in Cloud Scheduler)
+
+runConfig:
+  # Idle servers are stopped (free). The background jobs don't run inside the server here:
+  # Cloud Scheduler must call /api/cron every minute (see README).
+  minInstances: 0
+  # Keeps database connections within Supabase's free-plan limit (each instance opens up to 5).
+  maxInstances: 2
+
+env:
+  - variable: DATABASE_URL
+    secret: databaseUrl
+    availability:
+      - RUNTIME
+  - variable: CRON_SECRET
+    secret: cronSecret
+    availability:
+      - RUNTIME
+  - variable: COOKIE_SECURE
+    value: "true"
+    availability:
+      - RUNTIME
+  # After the first rollout, set this to the address shown in the App Hosting dashboard
+  # (used in QR codes and invite links), then remove the # in front of these lines:
+  # - variable: APP_URL
+  #   value: https://orbit-management--your-project-id.europe-west4.hosted.app
+  #   availability:
+  #     - RUNTIME

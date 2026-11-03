@@ -9,13 +9,13 @@ type SubscriptionJSON = { endpoint?: string; keys?: { p256dh?: string; auth?: st
 export async function savePushSubscription(sub: SubscriptionJSON) {
   const me = await requireCaptain();
   if (!sub.endpoint?.startsWith("https://") || !sub.keys?.p256dh || !sub.keys.auth) return { ok: false };
-  saveSubscription(me.id, { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth });
+  await saveSubscription(me.id, { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth });
   return { ok: true };
 }
 
 export async function removePushSubscription(endpoint: string) {
   const me = await requireCaptain();
-  run("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", endpoint, me.id);
+  await run("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", endpoint, me.id);
 }
 
 export async function sendTestPush() {

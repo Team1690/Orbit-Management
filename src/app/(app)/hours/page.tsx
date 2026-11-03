@@ -15,12 +15,12 @@ export default async function HoursPage({ searchParams }: PageProps<"/hours">) {
   await requireCaptain();
   const sp = await searchParams;
   const pick = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const period = periodFromSearch({ season: pick("season"), from: pick("from"), to: pick("to") });
-  const seasons = listSeasons();
+  const period = await periodFromSearch({ season: pick("season"), from: pick("from"), to: pick("to") });
+  const seasons = await listSeasons();
   const t = today();
 
-  const hours = hoursByUser(period.from, period.to);
-  const rows = listStudents()
+  const hours = await hoursByUser(period.from, period.to);
+  const rows = (await listStudents())
     .map((m) => ({ m, h: hours.get(m.id) ?? { ms: 0, visits: 0 } }))
     .sort((a, b) => b.h.ms - a.h.ms || a.m.name.localeCompare(b.m.name));
   const totalMs = rows.reduce((s, r) => s + r.h.ms, 0);

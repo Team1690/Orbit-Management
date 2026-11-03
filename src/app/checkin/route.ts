@@ -10,16 +10,16 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("c") ?? "";
   const go = (path: string) => NextResponse.redirect(new URL(path, appOrigin(request.headers)), 303);
 
-  if (!verifyQrCode(code)) return go("/?ci=expired");
+  if (!(await verifyQrCode(code))) return go("/?ci=expired");
 
   const user = await getUser();
   if (user) {
-    const { already } = checkIn(user.id, "qr");
+    const { already } = await checkIn(user.id, "qr");
     return go(already ? "/?ci=already" : "/?ci=ok");
   }
 
   const res = go("/login");
-  res.cookies.set(PENDING_COOKIE, pendingCheckinToken(), {
+  res.cookies.set(PENDING_COOKIE, await pendingCheckinToken(), {
     httpOnly: true,
     sameSite: "lax",
     secure: await secureCookies(),

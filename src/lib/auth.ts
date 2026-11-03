@@ -18,7 +18,7 @@ export async function secureCookies() {
 export const getUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const user = one<SessionUser>(
+  const user = await one<SessionUser>(
     `SELECT u.id, u.name, u.email, u.role
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1`,
@@ -44,7 +44,7 @@ export async function requireCaptain(): Promise<SessionUser> {
 export async function startSession(userId: number) {
   const token = randomToken();
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", sha256(token), userId, expires.toISOString());
+  await run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", sha256(token), userId, expires.toISOString());
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -57,7 +57,7 @@ export async function startSession(userId: number) {
 export async function endSession() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
-  if (token) run("DELETE FROM sessions WHERE token_hash = ?", sha256(token));
+  if (token) await run("DELETE FROM sessions WHERE token_hash = ?", sha256(token));
   jar.delete(SESSION_COOKIE);
 }
 
@@ -65,6 +65,6 @@ export function homeFor(user: { role: Role }) {
   return user.role === "captain" ? "/dashboard" : "/";
 }
 
-export function hasAnyUsers() {
-  return !!one("SELECT 1 FROM users LIMIT 1");
+export async function hasAnyUsers() {
+  return !!(await one("SELECT 1 FROM users LIMIT 1"));
 }

@@ -12,7 +12,7 @@ export async function completePendingCheckin(userId: number) {
   const pending = jar.get(PENDING_COOKIE)?.value;
   if (!pending) return null;
   jar.delete(PENDING_COOKIE);
-  if (!verifyPendingCheckin(pending)) return "/?ci=expired";
-  const { already } = checkIn(userId, "qr");
+  if (!(await verifyPendingCheckin(pending))) return "/?ci=expired";
+  const { already } = await checkIn(userId, "qr");
   return already ? "/?ci=already" : "/?ci=ok";
 }

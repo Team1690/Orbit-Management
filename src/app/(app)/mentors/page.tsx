@@ -43,10 +43,10 @@ export default async function MentorsPage() {
   const me = await requireUser();
   const isMentor = me.role === "mentor";
   const t = today();
-  const plan = mentorPlan(t, 14).filter((d) => d.entries.length > 0);
-  const mentors = listMentors();
-  const slots = mentorSlots();
-  const here = presentNow().filter((p) => p.role === "mentor");
+  const plan = (await mentorPlan(t, 14)).filter((d) => d.entries.length > 0);
+  const mentors = await listMentors();
+  const slots = await mentorSlots();
+  const here = (await presentNow()).filter((p) => p.role === "mentor");
   const mySlots = slots.filter((s) => s.user_id === me.id);
 
   return (

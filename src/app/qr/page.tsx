@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Check-in code" };
 export default async function QrPage({ searchParams }: PageProps<"/qr">) {
   const { k } = await searchParams;
   const key = typeof k === "string" ? k : undefined;
-  const settings = getSettings();
+  const settings = await getSettings();
   const user = await getUser();
   if (user?.role !== "captain" && key !== settings.display_key) {
     return (
@@ -25,7 +25,7 @@ export default async function QrPage({ searchParams }: PageProps<"/qr">) {
       </AuthShell>
     );
   }
-  const meeting = currentOrNextMeeting();
+  const meeting = await currentOrNextMeeting();
   let meetingLabel: string | null = null;
   if (meeting) {
     const { start, end } = meetingWindow(meeting);
