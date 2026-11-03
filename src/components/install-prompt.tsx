@@ -12,6 +12,10 @@ export function InstallPrompt() {
   const [event, setEvent] = useState<InstallEvent | null>(null);
 
   useEffect(() => {
+    // Some Android browsers only offer to install a site that has a service worker. Ours
+    // (public/sw.js) only handles captain alerts, so registering it for everyone changes nothing else.
+    navigator.serviceWorker?.register("/sw.js").catch(() => {});
+
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone;
     let dismissed = false;
