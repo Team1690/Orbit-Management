@@ -1,5 +1,5 @@
 # Firebase App Hosting settings. Create the two secrets before the first rollout:
-#   firebase apphosting:secrets:set databaseUrl   (Supabase → Connect → Session pooler string, with your password)
+#   firebase apphosting:secrets:set databaseUrl   (Supabase → Connect → Transaction pooler string, port 6543, with your password)
 #   firebase apphosting:secrets:set cronSecret    (any long random string; the same one goes in Cloud Scheduler)
 
 runConfig:

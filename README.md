@@ -59,7 +59,7 @@ Phones need to reach the server, and three phone features only work over **HTTPS
 
 The app is hosted on **Vercel** (free Hobby plan, an `https://….vercel.app` address) with its data in a **Supabase** Postgres database, which **Hasura** can also connect to. None of these need a credit card.
 
-1. **Database:** create a Supabase project (region Frankfurt). In **Connect**, copy the **Session pooler** string and put your database password in it. The app creates its tables on first start. Because the app talks to the database directly, turn off Supabase's **Data API** (Project Settings → Data API), so the tables can't be read through Supabase's public API.
+1. **Database:** create a Supabase project (region Frankfurt). In **Connect**, copy the **Transaction pooler** string (port 6543) and put your database password in it. Use the Transaction pooler, not the Session pooler: the Session pooler allows only 15 connections in total, and serverless hosts open more than that. The app creates its tables on first start. Because the app talks to the database directly, turn off Supabase's **Data API** (Project Settings → Data API), so the tables can't be read through Supabase's public API.
 2. **Vercel:** sign up with GitHub, then **Add New → Project** and import this repository. Vercel deploys the `main` branch. Before deploying, add two environment variables: `DATABASE_URL` (the Supabase string) and `CRON_SECRET` (any long random string). [vercel.json](vercel.json) runs the app in Frankfurt, next to the database.
 3. **Background jobs:** Vercel only gives the server CPU during requests, so the app doesn't run its every-minute jobs itself there (Vercel's own free cron runs once a day). On [cron-job.org](https://cron-job.org) (free), create a job that runs every minute and sends `GET https://<your app>/api/cron` with the header `Authorization: Bearer <CRON_SECRET>`.
 4. **Slack (optional):** at [api.slack.com/apps](https://api.slack.com/apps), choose **Create New App → From scratch** for your workspace, turn on **Incoming Webhooks**, then **Add New Webhook** and pick the channel. Paste the `https://hooks.slack.com/…` address in the app's **Settings → Slack** and use **Send a test message**. Before each meeting with RSVPs (2 hours by default), the channel gets who can't come and who will be late. Reasons stay in the app.
@@ -71,7 +71,7 @@ Environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Postgres connection string (Supabase's Session pooler). Without it the app uses the local PGlite database. |
+| `DATABASE_URL` | Postgres connection string (Supabase's Transaction pooler, port 6543). Without it the app uses the local PGlite database. |
 | `DATABASE_PATH` | Folder of the local PGlite database when `DATABASE_URL` isn't set (default `data/pglite`). |
 | `DATABASE_POOL_MAX` | Database connections per server instance (default 2 on Vercel, 5 elsewhere). |
 | `APP_URL` | Public address, e.g. `https://orbit.example.org`. Used in QR codes and invite links. On Vercel it defaults to the project's production domain; elsewhere, set this if the server sits behind a proxy and links come out wrong. |

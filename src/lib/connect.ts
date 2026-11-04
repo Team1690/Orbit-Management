@@ -39,8 +39,16 @@ async function openServer(url: string): Promise<Database> {
     // Supabase's free plan allows few connections, and hosts may run several instances at once.
     // Vercel starts more (smaller) instances than App Hosting, so each one gets fewer.
     max: Number(process.env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 2 : 5)),
+    // Give unused connections back quickly: Supabase counts every open one against its limit.
+    idleTimeoutMillis: 5_000,
   });
   pool.on("error", (err) => console.error("[orbit] idle database connection failed", err));
+  if (process.env.VERCEL) {
+    // Vercel pauses idle instances, and a paused instance's timers don't run, so its idle
+    // connections would stay open. This closes them before the pause.
+    const { attachDatabasePool } = await import("@vercel/functions");
+    attachDatabasePool(pool);
+  }
   const wrap = (c: Pool | PoolClient): Queryable => ({
     async query<T>(sql: string, params: unknown[] = []) {
       const res = await c.query(sql, params);
