@@ -1,3 +1,4 @@
+import { inAudience, parseAudience } from "./audience";
 import { all } from "./db";
 import { meetingWindow, rsvpsFor, type Meeting, type Rsvp } from "./meetings";
 import { getSettings } from "./settings";
@@ -25,13 +26,16 @@ export type AttendanceEntry = {
 };
 
 type Override = { meeting_id: number; user_id: number; status: "present" | "late" | "absent"; notice: number; note: string | null };
-type Member = { id: number; created_at: string };
+type Member = { id: number; created_at: string; subteam: string | null; teams: string | null };
+
+/** Who each student is, for working out which meetings they're expected at. */
+const MEMBER_COLUMNS = `id, created_at, subteam, (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
 
 function inList(n: number) {
   return Array.from({ length: n }, () => "?").join(",");
 }
 
-/** Attendance for each meeting × active student (not mentors) who had joined by the meeting. */
+/** Attendance for each meeting × active student (not mentors) the meeting is for, who had joined by then. */
 export async function computeAttendance(meetings: Meeting[], memberIds?: number[]) {
   const result = new Map<number, Map<number, AttendanceEntry>>();
   if (meetings.length === 0) return result;
@@ -44,8 +48,9 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
   const ids = meetings.map((m) => m.id);
 
   const members = memberIds?.length === 0 ? [] : memberIds
-    ? await all<Member>(`SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor' AND id IN (${inList(memberIds.length)})`, ...memberIds)
-    : await all<Member>("SELECT id, created_at FROM users WHERE active = 1 AND role <> 'mentor'");
+    ? await all<Member>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE active = 1 AND role <> 'mentor' AND id IN (${inList(memberIds.length)})`, ...memberIds)
+    : await all<Member>(`SELECT ${MEMBER_COLUMNS} FROM users WHERE active = 1 AND role <> 'mentor'`);
+  const memberTeams = new Map(members.map((u) => [u.id, u.teams ? u.teams.split("|") : []]));
 
   const visitsByUser = new Map<number, Visit[]>();
   for (const v of await all<Visit>(
@@ -68,9 +73,11 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
 
   for (const m of meetings) {
     const { start, end } = windows.get(m.id)!;
+    const audience = parseAudience(m.audience);
     const row = new Map<number, AttendanceEntry>();
     for (const member of members) {
       if (Date.parse(member.created_at) > end.getTime()) continue;
+      if (!inAudience(audience, { id: member.id, subteam: member.subteam, teams: memberTeams.get(member.id)! })) continue;
       const key = `${m.id}:${member.id}`;
       const rsvp = rsvps.get(key) ?? null;
 

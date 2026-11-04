@@ -17,7 +17,7 @@ import { currentPeriod, listSeasons, seasonPeriod, thisWeek, today } from "@/lib
 import { tz } from "@/lib/settings";
 import { localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
-import { VisitRow } from "./visit-row";
+import { VisitRow } from "@/components/visit-row";
 
 export const metadata: Metadata = { title: "Member" };
 
@@ -48,11 +48,13 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
   const periodMeetings = await meetingsBetween(period.startDate, t, false);
   const s = summaryFor(await summarize(periodMeetings, [id]), id);
 
-  const history = periodMeetings
-    .filter((mt) => meetingWindow(mt).start <= new Date())
+  const started = periodMeetings.filter((mt) => meetingWindow(mt).start <= new Date());
+  const attendance = await computeAttendance(started, [id]);
+  // Only meetings they were expected at (the whole team, one of their teams, or picked by name).
+  const history = started
+    .filter((mt) => attendance.get(mt.id)?.has(id))
     .reverse()
     .slice(0, 20);
-  const attendance = await computeAttendance(history, [id]);
   const visit = await openVisit(id);
   const visits = await recentVisits(id, 15);
   const notes = await notesFor(id);
@@ -208,7 +210,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                       key={v.id}
                       label={`${fmtDay(v.check_in)} · ${fmtTime(v.check_in)}–${v.check_out ? fmtTime(v.check_out) : "now"}`}
                       duration={fmtDuration(ms)}
-                      method={v.out_method ? (METHOD_LABEL[v.out_method] ?? null) : null}
+                      method={v.edited_by === id ? "edited by them" : v.out_method ? (METHOD_LABEL[v.out_method] ?? null) : null}
                       date={inLocal.date}
                       inTime={inLocal.time}
                       outTime={outLocal?.time ?? ""}

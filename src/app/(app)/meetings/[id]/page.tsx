@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteMeeting, setAttendance, setCancelled, setMemberRsvp, updateMeeting } from "@/actions/meetings";
+import { AudiencePicker } from "@/components/audience-picker";
 import { ActionForm, AutoRefresh, AutoSubmitSelect, ConfirmButton, Reveal, SubmitButton } from "@/components/client";
 import { MonitorIcon } from "@/components/icons";
 import { AttendanceBadge, Badge, Banner, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { computeAttendance, type AttendanceEntry } from "@/lib/attendance";
+import { audienceLabel, parseAudience } from "@/lib/audience";
 import { requireCaptain } from "@/lib/auth";
 import { fmtDate, fmtDateTime, fmtTime, minutesLate } from "@/lib/format";
 import { LATE_BY_OPTIONS, lateByLabel } from "@/lib/late-by";
@@ -65,6 +67,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
             {meeting.cancelled ? <Badge tone="red">Cancelled</Badge> : null}
             {!meeting.mandatory ? <Badge>Optional</Badge> : null}
             {!meeting.rsvp ? <Badge>No RSVP</Badge> : null}
+            <Badge tone="blue">For: {audienceLabel(parseAudience(meeting.audience)) ?? "whole team"}</Badge>
             {live && <Badge tone="green">Happening now</Badge>}
           </span>
         }
@@ -219,6 +222,11 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked={!!meeting.rsvp} className="size-4" /> Ask members to RSVP
               </label>
+              <AudiencePicker
+                students={[...members.values()].filter((s) => s.active && s.role !== "mentor")}
+                selected={parseAudience(meeting.audience)}
+                className="col-span-2"
+              />
               <div className="col-span-2">
                 <SubmitButton>Save</SubmitButton>
               </div>

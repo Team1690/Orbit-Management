@@ -6,8 +6,13 @@ import { requireCaptain } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
 import { DATE_RE, TIME_RE, bool, optStr, str, type FormState } from "@/lib/forms";
 import { LATE_BY_OPTIONS } from "@/lib/late-by";
+import { readAudience } from "@/lib/audience";
 import { ensureScheduledMeetings, setRsvp, type RsvpResponse } from "@/lib/meetings";
+import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { today } from "@/lib/periods";
+
+/** The teams a meeting can be limited to. */
+const AUDIENCE_TEAMS = [...SUBTEAMS, ...EXTRA_TEAMS];
 
 function readMeeting(fd: FormData) {
   const title = str(fd, "title") || "Team meeting";
@@ -17,7 +22,16 @@ function readMeeting(fd: FormData) {
   if (!DATE_RE.test(date)) return { error: "Pick a date." } as const;
   if (!TIME_RE.test(start) || !TIME_RE.test(end)) return { error: "Enter start and end times." } as const;
   if (end <= start) return { error: "The meeting must end after it starts." } as const;
-  return { title, date, start, end, mandatory: bool(fd, "mandatory"), rsvp: bool(fd, "rsvp"), notes: optStr(fd, "notes") };
+  return {
+    title,
+    date,
+    start,
+    end,
+    mandatory: bool(fd, "mandatory"),
+    rsvp: bool(fd, "rsvp"),
+    notes: optStr(fd, "notes"),
+    audience: readAudience(fd, AUDIENCE_TEAMS),
+  };
 }
 
 export async function createMeeting(_: FormState, fd: FormData): Promise<FormState> {
@@ -25,7 +39,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
   const { id } = await run(
-    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     m.title,
     m.date,
     m.start,
@@ -33,6 +47,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
     m.mandatory,
     m.rsvp,
     m.notes,
+    m.audience,
   );
   revalidatePath("/", "layout");
   redirect(`/meetings/${id}`);
@@ -43,7 +58,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
   await run(
-    "UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ? WHERE id = ?",
+    "UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ?, audience = ? WHERE id = ?",
     m.title,
     m.date,
     m.start,
@@ -51,6 +66,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     m.mandatory,
     m.rsvp,
     m.notes,
+    m.audience,
     id,
   );
   revalidatePath("/", "layout");
@@ -126,10 +142,30 @@ export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormS
   const applies = appliesValue === "in_season" || appliesValue === "off_season" ? appliesValue : "all";
   if (!(weekday >= 0 && weekday <= 6)) return { error: "Pick a day." };
   if (!TIME_RE.test(start) || !TIME_RE.test(end) || end <= start) return { error: "Enter a start time and a later end time." };
-  await run("INSERT INTO schedule (weekday, start_time, end_time, title, applies) VALUES (?, ?, ?, ?, ?)", weekday, start, end, title, applies);
+  await run(
+    "INSERT INTO schedule (weekday, start_time, end_time, title, applies, audience) VALUES (?, ?, ?, ?, ?, ?)",
+    weekday,
+    start,
+    end,
+    title,
+    applies,
+    readAudience(fd, AUDIENCE_TEAMS),
+  );
   await ensureScheduledMeetings();
   revalidatePath("/", "layout");
   return { message: "Added. Meetings for the next weeks were created." };
+}
+
+/** Changes who a weekly slot is for, including its meetings from today on. */
+export async function setScheduleAudience(id: number, _: FormState, fd: FormData): Promise<FormState> {
+  await requireCaptain();
+  const audience = readAudience(fd, AUDIENCE_TEAMS);
+  await tx(async () => {
+    await run("UPDATE schedule SET audience = ? WHERE id = ?", audience, id);
+    await run("UPDATE meetings SET audience = ? WHERE schedule_id = ? AND date >= ?", audience, id, today());
+  });
+  revalidatePath("/", "layout");
+  return { message: "Saved." };
 }
 
 /** Removes a weekly slot and its future meetings that nobody has answered yet. Past meetings stay. */

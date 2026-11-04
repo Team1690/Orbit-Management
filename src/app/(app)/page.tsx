@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { deleteMyVisit, updateMyVisit } from "@/actions/mentors";
 import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
 import { PushToggle } from "@/components/push-toggle";
 import { AttendanceBadge, Avatar, Badge, Banner, Card, Empty, RsvpBadge, Stat } from "@/components/ui";
+import { VisitRow } from "@/components/visit-row";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth";
 import { firstName, fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, pct, relativeDay } from "@/lib/format";
-import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpDeadline, rsvpsFor } from "@/lib/meetings";
+import { inAudience, parseAudience } from "@/lib/audience";
+import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpDeadline, rsvpsFor, type Meeting } from "@/lib/meetings";
+import { getMember } from "@/lib/members";
 import { mentorPlan } from "@/lib/mentors";
 import { currentPeriod, thisWeek, today } from "@/lib/periods";
 import { vapidPublicKey } from "@/lib/push";
@@ -39,15 +43,18 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
   const { rsvp_close_hours } = await getSettings();
   const publicKey = await vapidPublicKey();
-  const rsvpMeetings = await openRsvpMeetings();
+  const me = await getMember(user.id);
+  /** Meetings this member is expected at (the whole team, one of their teams, or picked by name). */
+  const forMe = (m: Meeting) => !!me && inAudience(parseAudience(m.audience), me);
+  const rsvpMeetings = (await openRsvpMeetings()).filter(forMe);
   const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
   const t = today();
-  const upcoming = (await meetingsBetween(t, addDays(t, 13), false)).filter((m) => meetingWindow(m).end > new Date()).slice(0, 6);
+  const upcoming = (await meetingsBetween(t, addDays(t, 13), false)).filter((m) => forMe(m) && meetingWindow(m).end > new Date()).slice(0, 6);
   const upcomingRsvps = new Map((await rsvpsFor(upcoming.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
   const past = (await meetingsBetween(addDays(t, -30), t, false))
-    .filter((m) => meetingWindow(m).end <= new Date())
+    .filter((m) => forMe(m) && meetingWindow(m).end <= new Date())
     .reverse()
     .slice(0, 6);
   const pastAttendance = await computeAttendance(past, [user.id]);
@@ -258,9 +265,30 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         )}
       </Card>
 
-      <Card title="My recent visits">
+      <Card title="My recent visits" pad={!mentor}>
         {visits.length === 0 ? (
           <Empty>No visits yet. Scan the code at your next meeting.</Empty>
+        ) : mentor ? (
+          // Mentors can fix their own times (a forgotten check-out, say).
+          <ul className="divide-y divide-slate-100">
+            {visits.map((v) => {
+              const inLocal = localParts(new Date(v.check_in), tz());
+              const outLocal = v.check_out ? localParts(new Date(v.check_out), tz()) : null;
+              return (
+                <VisitRow
+                  key={v.id}
+                  label={`${fmtDay(v.check_in)} · ${fmtTime(v.check_in)}–${v.check_out ? fmtTime(v.check_out) : "now"}`}
+                  duration={fmtDuration((v.check_out ? Date.parse(v.check_out) : Date.now()) - Date.parse(v.check_in))}
+                  method={v.out_method === "auto" ? "auto check-out" : null}
+                  date={inLocal.date}
+                  inTime={inLocal.time}
+                  outTime={outLocal?.time ?? ""}
+                  update={updateMyVisit.bind(null, v.id)}
+                  remove={deleteMyVisit.bind(null, v.id)}
+                />
+              );
+            })}
+          </ul>
         ) : (
           <ul className="divide-y divide-slate-100">
             {visits.map((v) => (

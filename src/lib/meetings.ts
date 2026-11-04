@@ -18,6 +18,8 @@ export type Meeting = {
   rsvp_open_push_at: string | null;
   rsvp_reminder_at: string | null;
   rsvp_closed_at: string | null;
+  /** Who needs to come, as JSON (see audience.ts); null = the whole team. */
+  audience: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";
@@ -31,6 +33,8 @@ export type ScheduleRule = {
   active: number;
   generated_until: string | null;
   applies: SlotApplies;
+  /** Copied to each meeting the slot creates (see audience.ts); null = the whole team. */
+  audience: string | null;
 };
 
 export const APPLIES_LABEL: Record<SlotApplies, string> = {
@@ -165,13 +169,14 @@ export async function ensureScheduledMeetings(now = new Date()) {
       for (; d <= horizon; d = addDays(d, 1)) {
         if (!slotAppliesOn(rule, d, await kindOn(d))) continue;
         await run(
-          `INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, schedule_id)
-           SELECT ?, ?, ?, ?, 1, 1, ?::int WHERE NOT EXISTS (SELECT 1 FROM meetings WHERE schedule_id = ? AND date = ?)`,
+          `INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, schedule_id, audience)
+           SELECT ?, ?, ?, ?, 1, 1, ?::int, ?::text WHERE NOT EXISTS (SELECT 1 FROM meetings WHERE schedule_id = ? AND date = ?)`,
           rule.title,
           d,
           rule.start_time,
           rule.end_time,
           rule.id,
+          rule.audience,
           rule.id,
           d,
         );

@@ -1,4 +1,7 @@
 import { all, one, run, tx } from "./db";
+import { DATE_RE, TIME_RE, str } from "./forms";
+import { tz } from "./settings";
+import { addDays, zonedToUtc } from "./timeutil";
 
 export type Visit = {
   id: number;
@@ -7,7 +10,24 @@ export type Visit = {
   check_out: string | null;
   in_method: "qr" | "manual" | "self";
   out_method: "self" | "auto" | "manual" | null;
+  /** Who last edited the times: a captain, or the person themselves (mentors). */
+  edited_by: number | null;
 };
+
+/** Reads date + times from a visit form into UTC instants. An end time earlier than the start means the next day. */
+export function readVisitTimes(fd: FormData) {
+  const date = str(fd, "date");
+  const inTime = str(fd, "in");
+  const outTime = str(fd, "out");
+  if (!DATE_RE.test(date) || !TIME_RE.test(inTime)) return { error: "Enter a date and check-in time." } as const;
+  if (outTime && !TIME_RE.test(outTime)) return { error: "Check-out time is invalid." } as const;
+  const zone = tz();
+  const checkIn = zonedToUtc(date, inTime, zone);
+  let checkOut = outTime ? zonedToUtc(date, outTime, zone) : null;
+  if (checkOut && checkOut <= checkIn) checkOut = zonedToUtc(addDays(date, 1), outTime, zone);
+  if (checkIn.getTime() > Date.now() + 60_000) return { error: "Check-in can't be in the future." } as const;
+  return { checkIn: checkIn.toISOString(), checkOut: checkOut?.toISOString() ?? null };
+}
 
 export function openVisit(userId: number) {
   return one<Visit>("SELECT * FROM visits WHERE user_id = ? AND check_out IS NULL", userId);

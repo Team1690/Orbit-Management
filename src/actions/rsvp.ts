@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { inAudience, parseAudience } from "@/lib/audience";
 import { requireUser } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { int, str, type FormState } from "@/lib/forms";
 import { LATE_BY_OPTIONS } from "@/lib/late-by";
 import { getMeeting, meetingWindow, rsvpDeadline, setRsvp, type Rsvp, type RsvpResponse } from "@/lib/meetings";
+import { getMember } from "@/lib/members";
 import { getSettings } from "@/lib/settings";
 
 export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState> {
@@ -15,6 +17,8 @@ export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState
   const note = str(fd, "note").slice(0, 300) || null;
   const lateBy = int(fd, "late_by");
   if (!meeting || meeting.cancelled || !meeting.rsvp) return { error: "This meeting isn't taking RSVPs." };
+  const me = await getMember(user.id);
+  if (!me || !inAudience(parseAudience(meeting.audience), me)) return { error: "This meeting isn't for you, so there's nothing to answer." };
   const now = new Date();
   if (meetingWindow(meeting).start <= now) return { error: "This meeting has already started." };
   if (!["yes", "late", "no"].includes(response)) return { error: "Pick an answer." };

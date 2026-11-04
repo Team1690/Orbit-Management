@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
-import { addMentorSlot, addMentorVisit, removeMentorChange, removeMentorSlot, skipMentorSlot } from "@/actions/mentors";
-import { ActionForm, ConfirmButton, SubmitButton } from "@/components/client";
+import {
+  addMentorSlot,
+  addMentorVisit,
+  removeMentorChange,
+  removeMentorSlot,
+  skipMentorSlot,
+  updateMentorSlot,
+  updateMentorVisit,
+} from "@/actions/mentors";
+import { ActionForm, ConfirmButton, Reveal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { fmtTime, relativeDay } from "@/lib/format";
@@ -14,12 +22,23 @@ export const metadata: Metadata = { title: "Mentors" };
 function EntryActions({ entry, date }: { entry: PlanEntry; date: string }) {
   if (entry.kind === "extra") {
     return (
-      <form action={removeMentorChange}>
-        <input type="hidden" name="id" value={entry.changeId!} />
-        <ConfirmButton message="Remove this visit?" className="text-xs font-medium text-rose-600 hover:underline">
-          Remove
-        </ConfirmButton>
-      </form>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Reveal label="Edit" className="text-xs font-medium text-brand-700 hover:underline">
+          <ActionForm action={updateMentorVisit.bind(null, entry.changeId!)} className="flex flex-wrap items-end gap-2 rounded-xl bg-slate-50 p-2">
+            <input name="date" type="date" defaultValue={date} required className="input w-auto py-1 text-xs" aria-label="Date" />
+            <input name="start_time" type="time" defaultValue={entry.start} required className="input w-auto py-1 text-xs" aria-label="Arrive" />
+            <input name="end_time" type="time" defaultValue={entry.end} required className="input w-auto py-1 text-xs" aria-label="Leave" />
+            <input name="note" defaultValue={entry.note ?? ""} maxLength={200} placeholder="Note" className="input w-36 py-1 text-xs" aria-label="Note" />
+            <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
+          </ActionForm>
+        </Reveal>
+        <form action={removeMentorChange}>
+          <input type="hidden" name="id" value={entry.changeId!} />
+          <ConfirmButton message="Remove this visit?" className="text-xs font-medium text-rose-600 hover:underline">
+            Remove
+          </ConfirmButton>
+        </form>
+      </div>
     );
   }
   if (entry.skipped) {
@@ -81,7 +100,7 @@ export default async function MentorsPage() {
                     <div className="mb-2 text-xs font-semibold tracking-wide text-brand-600 uppercase">{relativeDay(day.date)}</div>
                     <ul className="space-y-2">
                       {day.entries.map((e) => (
-                        <li key={`${e.kind}-${e.slotId ?? e.changeId}`} className={`flex items-center gap-3 ${e.skipped ? "opacity-60" : ""}`}>
+                        <li key={`${e.kind}-${e.slotId ?? e.changeId}`} className={`flex flex-wrap items-center gap-3 ${e.skipped ? "opacity-60" : ""}`}>
                           <Avatar name={e.name} size={34} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -117,17 +136,36 @@ export default async function MentorsPage() {
                 ) : (
                   <ul className="mb-4 divide-y divide-slate-100">
                     {mySlots.map((s) => (
-                      <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                        <span>
-                          <span className="font-medium">{WEEKDAY_NAMES[s.weekday]}</span> {s.start_time}–{s.end_time}
-                          {s.note && <span className="block text-xs text-slate-500">{s.note}</span>}
-                        </span>
-                        <form action={removeMentorSlot}>
-                          <input type="hidden" name="id" value={s.id} />
-                          <ConfirmButton message="Remove this weekly time?" className="text-xs text-rose-600 hover:underline">
-                            Remove
-                          </ConfirmButton>
-                        </form>
+                      <li key={s.id} className="py-2 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>
+                            <span className="font-medium">{WEEKDAY_NAMES[s.weekday]}</span> {s.start_time}–{s.end_time}
+                            {s.note && <span className="block text-xs text-slate-500">{s.note}</span>}
+                          </span>
+                          <form action={removeMentorSlot}>
+                            <input type="hidden" name="id" value={s.id} />
+                            <ConfirmButton message="Remove this weekly time?" className="text-xs text-rose-600 hover:underline">
+                              Remove
+                            </ConfirmButton>
+                          </form>
+                        </div>
+                        <Reveal label="Edit" className="mt-1 text-xs font-medium text-brand-700 hover:underline">
+                          <ActionForm action={updateMentorSlot.bind(null, s.id)} className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
+                            <select name="weekday" defaultValue={s.weekday} className="input col-span-2" aria-label="Day">
+                              {WEEKDAY_NAMES.map((d, i) => (
+                                <option key={d} value={i}>
+                                  {d}
+                                </option>
+                              ))}
+                            </select>
+                            <input name="start_time" type="time" defaultValue={s.start_time} required className="input" aria-label="Arrive" />
+                            <input name="end_time" type="time" defaultValue={s.end_time} required className="input" aria-label="Leave" />
+                            <input name="note" defaultValue={s.note ?? ""} maxLength={200} placeholder="Note (optional)" className="input col-span-2" aria-label="Note" />
+                            <div className="col-span-2">
+                              <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
+                            </div>
+                          </ActionForm>
+                        </Reveal>
                       </li>
                     ))}
                   </ul>

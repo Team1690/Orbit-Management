@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { addScheduleRule, createMeeting, deleteScheduleRule } from "@/actions/meetings";
-import { ActionForm, ConfirmButton, SubmitButton } from "@/components/client";
+import { addScheduleRule, createMeeting, deleteScheduleRule, setScheduleAudience } from "@/actions/meetings";
+import { AudiencePicker } from "@/components/audience-picker";
+import { ActionForm, ConfirmButton, Reveal, SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { computeAttendance } from "@/lib/attendance";
+import { audienceLabel, inAudience, parseAudience } from "@/lib/audience";
 import { requireCaptain } from "@/lib/auth";
-import { one } from "@/lib/db";
 import { fmtDate, fmtTime, relativeDay } from "@/lib/format";
 import { APPLIES_LABEL, WEEKDAY_NAMES, listSchedule, meetingWindow, meetingsBetween, rsvpsFor, seasonKindOn, type Meeting } from "@/lib/meetings";
+import { listStudents } from "@/lib/members";
 import { today } from "@/lib/periods";
 import { getSettings } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
@@ -16,11 +18,13 @@ import { addDays } from "@/lib/timeutil";
 export const metadata: Metadata = { title: "Meetings" };
 
 function MeetingFlags({ m }: { m: Meeting }) {
+  const forWho = audienceLabel(parseAudience(m.audience));
   return (
     <>
       {m.cancelled ? <Badge tone="red">Cancelled</Badge> : null}
       {!m.mandatory ? <Badge>Optional</Badge> : null}
       {!m.rsvp ? <Badge>No RSVP</Badge> : null}
+      {forWho ? <Badge tone="blue">For: {forWho}</Badge> : null}
     </>
   );
 }
@@ -31,11 +35,18 @@ export default async function MeetingsPage() {
   const { schedule_days_ahead } = await getSettings();
   const t = today();
   const now = new Date();
-  const memberCount = (await one<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND role <> 'mentor'"))!.n;
+  const students = await listStudents();
+  /** The students a meeting is for. */
+  const expected = (m: Meeting) => {
+    const audience = parseAudience(m.audience);
+    return new Set(students.filter((s) => inAudience(audience, s)).map((s) => s.id));
+  };
 
   const upcoming = (await meetingsBetween(t, addDays(t, schedule_days_ahead))).filter((m) => meetingWindow(m).end > now);
+  const invited = new Map(upcoming.map((m) => [m.id, expected(m)]));
   const counts = new Map<number, { yes: number; late: number; no: number }>();
   for (const r of await rsvpsFor(upcoming.map((m) => m.id))) {
+    if (!invited.get(r.meeting_id)?.has(r.user_id)) continue;
     const c = counts.get(r.meeting_id) ?? { yes: 0, late: 0, no: 0 };
     c[r.response] += 1;
     counts.set(r.meeting_id, c);
@@ -85,7 +96,7 @@ export default async function MeetingsPage() {
                               <span className="font-semibold text-amber-600">{c.late}</span> ·{" "}
                               <span className="font-semibold text-rose-600">{c.no}</span>
                             </div>
-                            <div className="text-slate-400">{memberCount - answered} no answer</div>
+                            <div className="text-slate-400">{(invited.get(m.id)?.size ?? 0) - answered} no answer</div>
                           </div>
                         ) : null}
                       </Link>
@@ -156,20 +167,31 @@ export default async function MeetingsPage() {
                       </div>
                       <ul className={`divide-y divide-slate-100 ${active ? "" : "opacity-60"}`}>
                         {rules.map((r) => (
-                          <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                            <span>
-                              <span className="font-medium">{WEEKDAY_NAMES[r.weekday]}</span> {r.start_time}–{r.end_time}
-                              <span className="block text-xs text-slate-500">{r.title}</span>
-                            </span>
-                            <form action={deleteScheduleRule}>
-                              <input type="hidden" name="id" value={r.id} />
-                              <ConfirmButton
-                                message="Remove this weekly slot? Future meetings from it that nobody has answered yet will be deleted. Past meetings stay."
-                                className="text-xs text-rose-600 hover:underline"
-                              >
-                                Remove
-                              </ConfirmButton>
-                            </form>
+                          <li key={r.id} className="py-2 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>
+                                <span className="font-medium">{WEEKDAY_NAMES[r.weekday]}</span> {r.start_time}–{r.end_time}
+                                <span className="block text-xs text-slate-500">
+                                  {r.title} · {audienceLabel(parseAudience(r.audience)) ?? "Whole team"}
+                                </span>
+                              </span>
+                              <form action={deleteScheduleRule}>
+                                <input type="hidden" name="id" value={r.id} />
+                                <ConfirmButton
+                                  message="Remove this weekly slot? Future meetings from it that nobody has answered yet will be deleted. Past meetings stay."
+                                  className="text-xs text-rose-600 hover:underline"
+                                >
+                                  Remove
+                                </ConfirmButton>
+                              </form>
+                            </div>
+                            <Reveal label="Change who comes" className="mt-1 text-xs font-medium text-brand-700 hover:underline">
+                              <ActionForm action={setScheduleAudience.bind(null, r.id)} className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3">
+                                <AudiencePicker students={students} selected={parseAudience(r.audience)} />
+                                <p className="text-xs text-slate-500">Also applies to this slot&apos;s meetings from today on.</p>
+                                <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
+                              </ActionForm>
+                            </Reveal>
                           </li>
                         ))}
                       </ul>
@@ -213,6 +235,7 @@ export default async function MeetingsPage() {
               <Field label="Title" className="col-span-2">
                 <input name="title" defaultValue="Team meeting" className="input" />
               </Field>
+              <AudiencePicker students={students} selected={null} className="col-span-2" />
               <div className="col-span-2">
                 <SubmitButton className="btn btn-secondary w-full">Add weekly slot</SubmitButton>
               </div>
@@ -239,6 +262,7 @@ export default async function MeetingsPage() {
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked className="size-4" /> Ask members to RSVP
               </label>
+              <AudiencePicker students={students} selected={null} className="col-span-2" />
               <div className="col-span-2">
                 <SubmitButton className="btn btn-primary w-full">Create meeting</SubmitButton>
               </div>

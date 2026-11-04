@@ -11,7 +11,8 @@ import { requireCaptain } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, minutesLate, pct, relativeDay } from "@/lib/format";
 import { rsvpDetail } from "@/lib/late-by";
-import { currentOrNextMeeting, meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
+import { audienceLabel, parseAudience } from "@/lib/audience";
+import { meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
 import { listMembers, type Member } from "@/lib/members";
 import { mentorPlan } from "@/lib/mentors";
 import { currentPeriod, today } from "@/lib/periods";
@@ -50,6 +51,7 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
   const { start, end } = meetingWindow(meeting);
   const now = new Date();
   const started = now >= start;
+  const forWho = audienceLabel(parseAudience(meeting.audience));
   const rows = [...((await computeAttendance([meeting])).get(meeting.id) ?? new Map<number, AttendanceEntry>())];
   const by = (pred: (e: AttendanceEntry) => boolean) => rows.filter(([, e]) => pred(e)).map(([id]) => id);
 
@@ -74,9 +76,13 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
   return (
     <Card
       title={
-        <span>
-          {started ? "Now: " : "Next: "}
-          {meeting.title} · {relativeDay(meeting.date)} {fmtTime(start)}–{fmtTime(end)}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span>
+            {started ? "Now: " : "Next: "}
+            {meeting.title} · {relativeDay(meeting.date)} {fmtTime(start)}–{fmtTime(end)}
+          </span>
+          <Badge>{meeting.schedule_id === null ? "One-off" : "Weekly"}</Badge>
+          {forWho && <Badge tone="blue">For: {forWho}</Badge>}
         </span>
       }
       actions={
@@ -201,7 +207,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const t = today();
   const period = await currentPeriod();
-  const [members, present, alerts, settings, mentorPlanToday, hours, meeting, summaries, monthSummaries, autoClosed, publicKey] =
+  const [members, present, alerts, settings, mentorPlanToday, hours, soon, summaries, monthSummaries, autoClosed, publicKey] =
     await Promise.all([
       listMembers(),
       presentNow(),
@@ -209,7 +215,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       getSettings(),
       mentorPlan(t, 1),
       hoursByUser(period.from, period.to),
-      currentOrNextMeeting(),
+      meetingsBetween(t, addDays(t, 14), false),
       meetingsBetween(period.startDate, t, false).then((ms) => summarize(ms)),
       meetingsBetween(addDays(t, -29), t, false).then((ms) => summarize(ms)),
       all<{ id: number; user_id: number; check_in: string; check_out: string }>(
@@ -225,6 +231,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const mentorsToday = mentorPlanToday[0].entries;
   const presentIds = new Set(present.map((p) => p.user_id));
   const teamMs = [...hours].filter(([id]) => students.has(id)).reduce((sum, [, h]) => sum + h.ms, 0);
+
+  // The weekly meeting happening now or next, and the next one-off meeting if there's one this week.
+  const notOver = soon.filter((m) => meetingWindow(m).end > new Date());
+  const nextWeekly = notOver.find((m) => m.schedule_id !== null);
+  const nextOneOff = notOver.find((m) => m.schedule_id === null && m.date <= addDays(t, 7));
+  const panels = [nextWeekly, nextOneOff]
+    .filter((m): m is Meeting => !!m)
+    .sort((a, b) => meetingWindow(a).start.getTime() - meetingWindow(b).start.getTime());
 
   const lowAttendance = [...summaries]
     .filter(([id, s]) => memberMap.has(id) && s.meetings >= 3 && (s.rate ?? 1) < 0.7)
@@ -296,8 +310,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          {meeting ? (
-            <MeetingPanel meeting={meeting} members={memberMap} />
+          {panels.length > 0 ? (
+            panels.map((m) => <MeetingPanel key={m.id} meeting={m} members={memberMap} />)
           ) : (
             <Card title="Meetings">
               <Empty>

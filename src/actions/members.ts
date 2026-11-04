@@ -5,11 +5,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireCaptain, requireUser, type Role } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
-import { DATE_RE, EMAIL_RE, TIME_RE, int, optStr, str, type FormState } from "@/lib/forms";
+import { DATE_RE, EMAIL_RE, int, optStr, str, type FormState } from "@/lib/forms";
 import { SUBTEAMS, createInvite, normalizeSubteam, setTeams } from "@/lib/members";
 import { appOrigin } from "@/lib/qr";
-import { tz } from "@/lib/settings";
-import { addDays, zonedToUtc } from "@/lib/timeutil";
+import { readVisitTimes } from "@/lib/visits";
 
 async function inviteUrl(token: string) {
   return `${appOrigin(await headers())}/invite/${token}`;
@@ -195,21 +194,6 @@ export async function deleteNote(fd: FormData) {
   await requireCaptain();
   await run("DELETE FROM captain_notes WHERE id = ?", Number(fd.get("id")));
   revalidatePath("/", "layout");
-}
-
-/** Reads date + times from a visit form into UTC instants. An end time earlier than the start means the next day. */
-function readVisitTimes(fd: FormData) {
-  const date = str(fd, "date");
-  const inTime = str(fd, "in");
-  const outTime = str(fd, "out");
-  if (!DATE_RE.test(date) || !TIME_RE.test(inTime)) return { error: "Enter a date and check-in time." } as const;
-  if (outTime && !TIME_RE.test(outTime)) return { error: "Check-out time is invalid." } as const;
-  const zone = tz();
-  const checkIn = zonedToUtc(date, inTime, zone);
-  let checkOut = outTime ? zonedToUtc(date, outTime, zone) : null;
-  if (checkOut && checkOut <= checkIn) checkOut = zonedToUtc(addDays(date, 1), outTime, zone);
-  if (checkIn.getTime() > Date.now() + 60_000) return { error: "Check-in can't be in the future." } as const;
-  return { checkIn: checkIn.toISOString(), checkOut: checkOut?.toISOString() ?? null };
 }
 
 export async function addVisit(memberId: number, _: FormState, fd: FormData): Promise<FormState> {

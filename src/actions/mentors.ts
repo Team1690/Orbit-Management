@@ -6,6 +6,7 @@ import { one, run, tx } from "@/lib/db";
 import { DATE_RE, TIME_RE, optStr, str, type FormState } from "@/lib/forms";
 import { today } from "@/lib/periods";
 import { weekdayOf } from "@/lib/timeutil";
+import { readVisitTimes } from "@/lib/visits";
 
 async function requireMentor() {
   const user = await requireUser();
@@ -36,6 +37,25 @@ export async function addMentorSlot(_: FormState, fd: FormData): Promise<FormSta
   );
   revalidatePath("/", "layout");
   return { message: "Added to your weekly schedule." };
+}
+
+export async function updateMentorSlot(slotId: number, _: FormState, fd: FormData): Promise<FormState> {
+  const me = await requireMentor();
+  const weekday = Number(fd.get("weekday"));
+  const times = readTimes(fd);
+  if (!(weekday >= 0 && weekday <= 6)) return { error: "Pick a day." };
+  if (!times) return { error: "Enter when you arrive and a later time you leave." };
+  await run(
+    "UPDATE mentor_slots SET weekday = ?, start_time = ?, end_time = ?, note = ? WHERE id = ? AND user_id = ?",
+    weekday,
+    times.start,
+    times.end,
+    optStr(fd, "note")?.slice(0, 200),
+    slotId,
+    me.id,
+  );
+  revalidatePath("/", "layout");
+  return { message: "Saved." };
 }
 
 export async function removeMentorSlot(fd: FormData) {
@@ -75,6 +95,60 @@ export async function addMentorVisit(_: FormState, fd: FormData): Promise<FormSt
   );
   revalidatePath("/", "layout");
   return { message: "Added. Everyone can see it on the Mentors page." };
+}
+
+export async function updateMentorVisit(changeId: number, _: FormState, fd: FormData): Promise<FormState> {
+  const me = await requireMentor();
+  const date = str(fd, "date");
+  const times = readTimes(fd);
+  if (!DATE_RE.test(date) || date < today()) return { error: "Pick today or a later date." };
+  if (!times) return { error: "Enter when you arrive and a later time you leave." };
+  await run(
+    "UPDATE mentor_changes SET date = ?, start_time = ?, end_time = ?, note = ? WHERE id = ? AND user_id = ? AND kind = 'extra'",
+    date,
+    times.start,
+    times.end,
+    optStr(fd, "note")?.slice(0, 200),
+    changeId,
+    me.id,
+  );
+  revalidatePath("/", "layout");
+  return { message: "Saved." };
+}
+
+/** A mentor fixes the times of one of their own check-ins (a forgotten check-out, say). */
+export async function updateMyVisit(visitId: number, _: FormState, fd: FormData): Promise<FormState> {
+  const me = await requireMentor();
+  const t = readVisitTimes(fd);
+  if ("error" in t) return { error: t.error };
+  const current = await one<{ check_out: string | null; out_method: string | null }>(
+    "SELECT check_out, out_method FROM visits WHERE id = ? AND user_id = ?",
+    visitId,
+    me.id,
+  );
+  if (!current) return { error: "Visit not found." };
+  const outMethod = t.checkOut ? (t.checkOut === current.check_out ? current.out_method : "self") : null;
+  try {
+    await run(
+      "UPDATE visits SET check_in = ?, check_out = ?, out_method = ?, edited_by = ? WHERE id = ? AND user_id = ?",
+      t.checkIn,
+      t.checkOut,
+      outMethod,
+      me.id,
+      visitId,
+      me.id,
+    );
+  } catch {
+    return { error: "You're already checked in at another visit. Add a leave time." };
+  }
+  revalidatePath("/", "layout");
+  return { message: "Saved." };
+}
+
+export async function deleteMyVisit(visitId: number) {
+  const me = await requireMentor();
+  await run("DELETE FROM visits WHERE id = ? AND user_id = ?", visitId, me.id);
+  revalidatePath("/", "layout");
 }
 
 /** Undoes a "can't come" or removes a one-off visit. */

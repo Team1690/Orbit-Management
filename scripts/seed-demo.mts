@@ -214,6 +214,12 @@ await db.transaction(async (q) => {
   }
   await q.query("UPDATE schedule SET generated_until = $1", [addDays(today, 21)]);
 
+  // A one-off meeting this week for two of the extra teams only (see src/lib/audience.ts).
+  await q.query(
+    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, audience) VALUES ($1, $2, $3, $4, 1, 1, $5)",
+    ["Strategy workshop", addDays(today, 4), "18:00", "20:00", JSON.stringify({ teams: ["Strategy", "Drive team"], members: [] })],
+  );
+
   // --- Mentor schedules and visits -----------------------------------------------------------
   const insertSlot = insert(q, "INSERT INTO mentor_slots (user_id, weekday, start_time, end_time, note) VALUES ($1, $2, $3, $4, $5)");
   const [ronit, yossi, michal] = mentorIds;

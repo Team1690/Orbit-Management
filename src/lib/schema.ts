@@ -195,6 +195,12 @@ const MIGRATIONS: string[] = [
   ALTER TABLE meetings ADD COLUMN rsvp_reminder_at TEXT;
   ALTER TABLE meetings ADD COLUMN rsvp_closed_at TEXT;
   `,
+
+  // 4: who each meeting (and weekly slot) is for. JSON {"teams": [...], "members": [ids]}; NULL = whole team.
+  `
+  ALTER TABLE meetings ADD COLUMN audience TEXT;
+  ALTER TABLE schedule ADD COLUMN audience TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */
