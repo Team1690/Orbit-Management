@@ -6,7 +6,7 @@ import { summarize, summaryFor } from "@/lib/attendance";
 import { requireCaptain } from "@/lib/auth";
 import { fmtHours, pct } from "@/lib/format";
 import { meetingsBetween } from "@/lib/meetings";
-import { EXTRA_TEAMS, SUBTEAMS, listMembers } from "@/lib/members";
+import { EXTRA_TEAMS, SUBTEAMS, listMembers, roleLabel } from "@/lib/members";
 import { currentPeriod, today } from "@/lib/periods";
 import { hoursByUser, presentNow } from "@/lib/visits";
 
@@ -113,7 +113,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                             </span>
                             <span className="flex gap-1">
                               {m.role === "captain" && <Badge tone="blue">Captain</Badge>}
-                              {m.role === "mentor" && <Badge tone="purple">Mentor</Badge>}
+                              {m.role === "mentor" && <Badge tone="purple">{roleLabel(m)}</Badge>}
                               {!m.has_password && <Badge tone="yellow">No password</Badge>}
                               {!m.active && <Badge>Inactive</Badge>}
                             </span>

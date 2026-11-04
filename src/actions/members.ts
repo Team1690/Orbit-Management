@@ -18,9 +18,14 @@ async function emailTaken(email: string, exceptId?: number) {
   return !!(await one("SELECT 1 FROM users WHERE lower(email) = ? AND id <> ?", email, exceptId ?? 0));
 }
 
+/** The Role dropdown: "lead_mentor" is a mentor with the lead flag. */
 function readRole(fd: FormData): Role {
   const role = str(fd, "role");
-  return role === "captain" || role === "mentor" ? role : "member";
+  return role === "captain" || role === "mentor" ? role : role === "lead_mentor" ? "mentor" : "member";
+}
+
+function readLeadMentor(fd: FormData) {
+  return str(fd, "role") === "lead_mentor";
 }
 
 export async function createMember(_: FormState, fd: FormData): Promise<FormState> {
@@ -35,10 +40,11 @@ export async function createMember(_: FormState, fd: FormData): Promise<FormStat
   const role = readRole(fd);
   const id = await tx(async () => {
     const { id } = await run(
-      "INSERT INTO users (name, email, role, subteam, grade, phone, joined_year) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      "INSERT INTO users (name, email, role, lead_mentor, subteam, grade, phone, joined_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
       name,
       email,
       role,
+      readLeadMentor(fd),
       subteam,
       role === "mentor" ? null : optStr(fd, "grade"),
       optStr(fd, "phone"),
@@ -115,12 +121,13 @@ export async function updateMember(id: number, _: FormState, fd: FormData): Prom
 
   await tx(async () => {
     await run(
-      `UPDATE users SET name = ?, email = ?, role = ?, active = ?, phone = ?, grade = ?, subteam = ?, subject_1 = ?, subject_2 = ?,
+      `UPDATE users SET name = ?, email = ?, role = ?, lead_mentor = ?, active = ?, phone = ?, grade = ?, subteam = ?, subject_1 = ?, subject_2 = ?,
          birthday = ?, joined_year = ?, shirt_size = ?, parent_name = ?, parent_phone = ?, medical_notes = ?
        WHERE id = ?`,
       name,
       email,
       role,
+      readLeadMentor(fd),
       active,
       optStr(fd, "phone"),
       optStr(fd, "grade"),

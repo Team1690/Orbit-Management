@@ -201,6 +201,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE meetings ADD COLUMN audience TEXT;
   ALTER TABLE schedule ADD COLUMN audience TEXT;
   `,
+
+  // 5: lead mentors (role 'mentor' with this flag) see every upcoming meeting, like captains.
+  `
+  ALTER TABLE users ADD COLUMN lead_mentor INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

@@ -8,6 +8,8 @@ export type Member = {
   email: string;
   role: Role;
   active: number;
+  /** For mentors: a lead mentor sees every upcoming meeting, like a captain. */
+  lead_mentor: number;
   phone: string | null;
   grade: string | null;
   subteam: string | null;
@@ -27,7 +29,7 @@ export type Member = {
   created_at: string;
 };
 
-const MEMBER_COLUMNS = `id, name, email, role, active, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
+const MEMBER_COLUMNS = `id, name, email, role, active, lead_mentor, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
   shirt_size, parent_name, parent_phone, medical_notes, (password_hash IS NOT NULL)::int AS has_password, invite_expires_at, created_at,
   (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
 
@@ -62,6 +64,16 @@ export const SCHOOL_SUBJECTS = [
 ];
 
 export const ROLE_LABEL: Record<Role, string> = { member: "Member", captain: "Captain", mentor: "Mentor" };
+
+/** "Lead mentor" for lead mentors, otherwise the role's label. */
+export function roleLabel(m: Pick<Member, "role" | "lead_mentor">) {
+  return m.role === "mentor" && m.lead_mentor ? "Lead mentor" : ROLE_LABEL[m.role];
+}
+
+/** The value of a member's Role dropdown: lead mentors are mentors with the flag set. */
+export function roleChoice(m: Pick<Member, "role" | "lead_mentor">) {
+  return m.role === "mentor" && m.lead_mentor ? "lead_mentor" : m.role;
+}
 
 type MemberRow = Omit<Member, "teams"> & { teams: string | null };
 

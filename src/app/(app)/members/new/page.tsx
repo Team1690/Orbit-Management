@@ -48,6 +48,7 @@ export default async function NewMemberPage() {
                 <option value="member">Member</option>
                 <option value="captain">Captain</option>
                 <option value="mentor">Mentor</option>
+                <option value="lead_mentor">Lead mentor (sees every upcoming meeting)</option>
               </select>
             </Field>
             <TeamCheckboxes className="sm:col-span-2" />

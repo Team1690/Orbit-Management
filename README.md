@@ -17,7 +17,7 @@ It is an installable web app (PWA): members add it to their home screen on iPhon
 | **Member profiles** | Contact and parent details, main subteam (CAD, Mechanical, Robot software or Applications), any extra teams (Strategy, Electronics, Drive team, Media, Community outreach), the two school subjects they chose, grade, shirt size, medical notes, hours by season, attendance history, visit log (editable), and **captain-only notes**. |
 | **Captain dashboard** | Who's at school now, the next weekly meeting and the next one-off meeting in the coming week (with live arrivals once they start), who hasn't answered the RSVP (with a "copy reminder" button for WhatsApp), members who need attention, and an hours leaderboard. |
 
-Roles: **captain** (everything), **member** (own home screen, scanning, RSVPs, own profile, Mentors page) and **mentor** (one-tap check-in, own weekly schedule, Mentors page). Members and mentors never see notes, other members' data or the QR code page.
+Roles: **captain** (everything), **member** (own home screen, scanning, RSVPs, own profile, Mentors page) and **mentor** (one-tap check-in, own weekly schedule, Mentors page). A **lead mentor** is a mentor who, like captains, sees every upcoming meeting on their home screen, not only the ones they are expected at. Members and mentors never see notes, other members' data or the QR code page.
 
 ## Running it
 

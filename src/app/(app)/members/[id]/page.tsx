@@ -12,7 +12,7 @@ import { rsvpDetail } from "@/lib/late-by";
 import { WEEKDAY_NAMES, meetingWindow, meetingsBetween } from "@/lib/meetings";
 import { mentorSlots } from "@/lib/mentors";
 import { subjectsText } from "@/components/member-fields";
-import { ROLE_LABEL, getMember, notesFor } from "@/lib/members";
+import { getMember, notesFor, roleLabel } from "@/lib/members";
 import { currentPeriod, listSeasons, seasonPeriod, thisWeek, today } from "@/lib/periods";
 import { tz } from "@/lib/settings";
 import { localParts } from "@/lib/timeutil";
@@ -75,7 +75,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
         }
         subtitle={
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
-            {m.role !== "member" && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{ROLE_LABEL[m.role]}</Badge>}
+            {m.role !== "member" && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
             {m.subteam && <Badge>{m.subteam}</Badge>}
             {m.teams.map((t) => (
               <Badge key={t}>{t}</Badge>

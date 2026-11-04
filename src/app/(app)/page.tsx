@@ -10,7 +10,7 @@ import { VisitRow } from "@/components/visit-row";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth";
 import { firstName, fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, pct, relativeDay } from "@/lib/format";
-import { inAudience, parseAudience } from "@/lib/audience";
+import { audienceLabel, inAudience, parseAudience } from "@/lib/audience";
 import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpDeadline, rsvpsFor, type Meeting } from "@/lib/meetings";
 import { getMember } from "@/lib/members";
 import { mentorPlan } from "@/lib/mentors";
@@ -50,7 +50,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
   const t = today();
-  const upcoming = (await meetingsBetween(t, addDays(t, 13), false)).filter((m) => forMe(m) && meetingWindow(m).end > new Date()).slice(0, 6);
+  // Captains and lead mentors see every upcoming meeting; everyone else only the ones they're expected at.
+  const seesAll = user.role === "captain" || (user.role === "mentor" && !!me?.lead_mentor);
+  const upcoming = (await meetingsBetween(t, addDays(t, 13), false))
+    .filter((m) => (seesAll || forMe(m)) && meetingWindow(m).end > new Date())
+    .slice(0, seesAll ? 10 : 6);
   const upcomingRsvps = new Map((await rsvpsFor(upcoming.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
   const past = (await meetingsBetween(addDays(t, -30), t, false))
@@ -222,17 +226,23 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <ul className="divide-y divide-slate-100">
             {upcoming.map((m) => {
               const { start, end } = meetingWindow(m);
+              const forWho = audienceLabel(parseAudience(m.audience));
               return (
                 <li key={m.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div>
-                    <div className="text-sm font-medium">{m.title}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                      {m.title}
+                      {forWho && <Badge tone="blue">For: {forWho}</Badge>}
+                    </div>
                     <div className="text-xs text-slate-500">
                       {relativeDay(m.date)} · {fmtTime(start)}–{fmtTime(end)}
                       {!m.mandatory && " · optional"}
                     </div>
                   </div>
-                  {m.rsvp && !mentor ? (
+                  {m.rsvp && !mentor && forMe(m) ? (
                     <RsvpBadge response={upcomingRsvps.get(m.id)?.response} lateByMin={upcomingRsvps.get(m.id)?.late_by_min} />
+                  ) : !mentor && !forMe(m) ? (
+                    <span className="shrink-0 text-xs text-slate-400">Not required for you</span>
                   ) : null}
                 </li>
               );

@@ -6,7 +6,7 @@ import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { requireCaptain } from "@/lib/auth";
 import { SubjectInputs, SubteamSelect, TeamCheckboxes } from "@/components/member-fields";
-import { GRADES, SHIRT_SIZES, getMember } from "@/lib/members";
+import { GRADES, SHIRT_SIZES, getMember, roleChoice } from "@/lib/members";
 
 export const metadata: Metadata = { title: "Edit member" };
 
@@ -44,10 +44,11 @@ export default async function EditMemberPage({ params }: PageProps<"/members/[id
             </select>
           </Field>
           <Field label="Role">
-            <select name="role" defaultValue={m.role} className="input">
+            <select name="role" defaultValue={roleChoice(m)} className="input">
               <option value="member">Member</option>
               <option value="captain">Captain</option>
               <option value="mentor">Mentor</option>
+              <option value="lead_mentor">Lead mentor (sees every upcoming meeting)</option>
             </select>
           </Field>
           <Field label="Status" hint="Inactive members can't log in and aren't counted in attendance.">

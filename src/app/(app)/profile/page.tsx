@@ -5,7 +5,7 @@ import { ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Field } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { SubjectInputs } from "@/components/member-fields";
-import { ROLE_LABEL, SHIRT_SIZES, getMember } from "@/lib/members";
+import { SHIRT_SIZES, getMember, roleLabel } from "@/lib/members";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -20,7 +20,7 @@ export default async function ProfilePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{m.name}</h1>
           <div className="mt-1 flex flex-wrap gap-1.5 text-sm text-slate-500">
-            {m.role !== "member" && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{ROLE_LABEL[m.role]}</Badge>}
+            {m.role !== "member" && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
             {m.subteam && <Badge>{m.subteam}</Badge>}
             {m.teams.map((t) => (
               <Badge key={t} tone="gray">
