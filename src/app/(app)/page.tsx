@@ -4,7 +4,7 @@ import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
-import { PushToggle } from "@/components/push-toggle";
+import { ReminderPrompt } from "@/components/push-toggle";
 import { AttendanceBadge, Avatar, Badge, Banner, Card, Empty, RsvpBadge, Stat } from "@/components/ui";
 import { VisitRow } from "@/components/visit-row";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
@@ -199,12 +199,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         );
       })}
 
-      {!mentor && (
-        <Card title="Reminders">
-          <p className="mb-3 text-sm text-slate-600">Get a notification when you can answer for a meeting, and a reminder if you haven&apos;t answered.</p>
-          <PushToggle publicKey={publicKey} what="reminders" />
-        </Card>
-      )}
+      {/* Disappears once reminders are on for this device; Profile keeps the switch. */}
+      {!mentor && <ReminderPrompt publicKey={publicKey} />}
 
       <div className={`grid gap-3 ${mentor ? "grid-cols-2" : "grid-cols-3"}`}>
         <Stat label="This week" value={fmtHours(weekHours.ms)} hint="hours" />

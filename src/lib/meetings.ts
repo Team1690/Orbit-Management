@@ -20,6 +20,9 @@ export type Meeting = {
   rsvp_closed_at: string | null;
   /** Who needs to come, as JSON (see audience.ts); null = the whole team. */
   audience: string | null;
+  /** Hours before the start to notify everyone expected; null = no reminder. */
+  reminder_hours: number | null;
+  reminder_sent_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";
@@ -35,6 +38,8 @@ export type ScheduleRule = {
   applies: SlotApplies;
   /** Copied to each meeting the slot creates (see audience.ts); null = the whole team. */
   audience: string | null;
+  /** Copied to each meeting the slot creates; null = no reminder. */
+  reminder_hours: number | null;
 };
 
 export const APPLIES_LABEL: Record<SlotApplies, string> = {
@@ -95,15 +100,23 @@ export async function currentOrNextMeeting(now = new Date()) {
 }
 
 /** Meetings members should be answering right now: RSVP enabled, not started, within the RSVP window. */
+/**
+ * Meetings taking answers right now: RSVP enabled and not started. Weekly meetings open
+ * `rsvp_open_hours` before the start; one-off meetings as soon as they're created.
+ */
 export async function openRsvpMeetings(now = new Date()) {
   const { rsvp_open_hours } = await getSettings();
   const t = localParts(now, tz()).date;
   const horizon = now.getTime() + rsvp_open_hours * 3_600_000;
-  return (await meetingsBetween(t, addDays(t, Math.ceil(rsvp_open_hours / 24) + 1), false)).filter((m) => {
-    if (!m.rsvp) return false;
-    const { start } = meetingWindow(m);
-    return start > now && start.getTime() <= horizon;
-  });
+  const soon = await meetingsBetween(t, addDays(t, Math.ceil(rsvp_open_hours / 24) + 1), false);
+  const oneOffs = await all<Meeting>("SELECT * FROM meetings WHERE schedule_id IS NULL AND cancelled = 0 AND date >= ?", t);
+  return [...new Map([...soon, ...oneOffs].map((m) => [m.id, m])).values()]
+    .filter((m) => {
+      if (!m.rsvp) return false;
+      const { start } = meetingWindow(m);
+      return start > now && (m.schedule_id === null || start.getTime() <= horizon);
+    })
+    .sort((a, b) => meetingWindow(a).start.getTime() - meetingWindow(b).start.getTime());
 }
 
 export async function rsvpsFor(meetingIds: number[]) {
@@ -169,14 +182,15 @@ export async function ensureScheduledMeetings(now = new Date()) {
       for (; d <= horizon; d = addDays(d, 1)) {
         if (!slotAppliesOn(rule, d, await kindOn(d))) continue;
         await run(
-          `INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, schedule_id, audience)
-           SELECT ?, ?, ?, ?, 1, 1, ?::int, ?::text WHERE NOT EXISTS (SELECT 1 FROM meetings WHERE schedule_id = ? AND date = ?)`,
+          `INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, schedule_id, audience, reminder_hours)
+           SELECT ?, ?, ?, ?, 1, 1, ?::int, ?::text, ?::int WHERE NOT EXISTS (SELECT 1 FROM meetings WHERE schedule_id = ? AND date = ?)`,
           rule.title,
           d,
           rule.start_time,
           rule.end_time,
           rule.id,
           rule.audience,
+          rule.reminder_hours,
           rule.id,
           d,
         );

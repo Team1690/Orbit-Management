@@ -5,7 +5,9 @@ import { ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Field } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { SubjectInputs } from "@/components/member-fields";
+import { PushToggle } from "@/components/push-toggle";
 import { SHIRT_SIZES, getMember, roleLabel } from "@/lib/members";
+import { vapidPublicKey } from "@/lib/push";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -66,6 +68,15 @@ export default async function ProfilePage() {
           </div>
         </ActionForm>
       </Card>
+
+      {m.role !== "mentor" && (
+        <Card title="Notifications">
+          <p className="mb-3 text-sm text-slate-600">
+            RSVP reminders and meeting reminders on this device{m.role === "captain" ? ", plus captain alerts" : ""}.
+          </p>
+          <PushToggle publicKey={await vapidPublicKey()} what="reminders" />
+        </Card>
+      )}
 
       <Card title="Change password">
         <ActionForm action={changePassword} className="grid gap-4 sm:grid-cols-2">

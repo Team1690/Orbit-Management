@@ -206,6 +206,13 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN lead_mentor INTEGER NOT NULL DEFAULT 0;
   `,
+
+  // 6: a reminder a captain sets per meeting (or weekly slot): hours before the start, NULL = none.
+  `
+  ALTER TABLE meetings ADD COLUMN reminder_hours INTEGER;
+  ALTER TABLE meetings ADD COLUMN reminder_sent_at TEXT;
+  ALTER TABLE schedule ADD COLUMN reminder_hours INTEGER;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

@@ -235,6 +235,9 @@ export default async function MeetingsPage() {
               <Field label="Title" className="col-span-2">
                 <input name="title" defaultValue="Team meeting" className="input" />
               </Field>
+              <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">
+                <input name="reminder_hours" type="number" min={1} max={168} placeholder="e.g. 2" className="input" />
+              </Field>
               <AudiencePicker students={students} selected={null} className="col-span-2" />
               <div className="col-span-2">
                 <SubmitButton className="btn btn-secondary w-full">Add weekly slot</SubmitButton>
@@ -262,6 +265,9 @@ export default async function MeetingsPage() {
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked className="size-4" /> Ask members to RSVP
               </label>
+              <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">
+                <input name="reminder_hours" type="number" min={1} max={168} placeholder="e.g. 2" className="input" />
+              </Field>
               <AudiencePicker students={students} selected={null} className="col-span-2" />
               <div className="col-span-2">
                 <SubmitButton className="btn btn-primary w-full">Create meeting</SubmitButton>

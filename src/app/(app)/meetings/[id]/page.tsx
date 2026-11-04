@@ -68,6 +68,11 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
             {!meeting.mandatory ? <Badge>Optional</Badge> : null}
             {!meeting.rsvp ? <Badge>No RSVP</Badge> : null}
             <Badge tone="blue">For: {audienceLabel(parseAudience(meeting.audience)) ?? "whole team"}</Badge>
+            {meeting.reminder_hours ? (
+              <Badge>
+                Reminder {meeting.reminder_hours}h before{meeting.reminder_sent_at ? " · sent" : ""}
+              </Badge>
+            ) : null}
             {live && <Badge tone="green">Happening now</Badge>}
           </span>
         }
@@ -222,6 +227,9 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked={!!meeting.rsvp} className="size-4" /> Ask members to RSVP
               </label>
+              <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">
+                <input name="reminder_hours" type="number" min={1} max={168} placeholder="e.g. 2" defaultValue={meeting.reminder_hours ?? ""} className="input" />
+              </Field>
               <AudiencePicker
                 students={[...members.values()].filter((s) => s.active && s.role !== "mentor")}
                 selected={parseAudience(meeting.audience)}

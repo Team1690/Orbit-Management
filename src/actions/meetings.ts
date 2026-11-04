@@ -4,15 +4,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCaptain } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
-import { DATE_RE, TIME_RE, bool, optStr, str, type FormState } from "@/lib/forms";
+import { DATE_RE, TIME_RE, bool, int, optStr, str, type FormState } from "@/lib/forms";
 import { LATE_BY_OPTIONS } from "@/lib/late-by";
 import { readAudience } from "@/lib/audience";
 import { ensureScheduledMeetings, setRsvp, type RsvpResponse } from "@/lib/meetings";
 import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { today } from "@/lib/periods";
+import { sendRsvpNotifications } from "@/lib/rsvp-reminders";
 
 /** The teams a meeting can be limited to. */
 const AUDIENCE_TEAMS = [...SUBTEAMS, ...EXTRA_TEAMS];
+
+/** The optional "Reminder (hours before)" field: null when empty, "invalid" outside 1–168 (a week). */
+function readReminder(fd: FormData) {
+  if (!str(fd, "reminder_hours")) return null;
+  const hours = int(fd, "reminder_hours");
+  return hours !== null && hours >= 1 && hours <= 168 ? hours : "invalid";
+}
+const REMINDER_ERROR = "Set the reminder 1–168 hours before the meeting, or leave it empty.";
 
 function readMeeting(fd: FormData) {
   const title = str(fd, "title") || "Team meeting";
@@ -22,6 +31,8 @@ function readMeeting(fd: FormData) {
   if (!DATE_RE.test(date)) return { error: "Pick a date." } as const;
   if (!TIME_RE.test(start) || !TIME_RE.test(end)) return { error: "Enter start and end times." } as const;
   if (end <= start) return { error: "The meeting must end after it starts." } as const;
+  const reminderHours = readReminder(fd);
+  if (reminderHours === "invalid") return { error: REMINDER_ERROR } as const;
   return {
     title,
     date,
@@ -31,6 +42,7 @@ function readMeeting(fd: FormData) {
     rsvp: bool(fd, "rsvp"),
     notes: optStr(fd, "notes"),
     audience: readAudience(fd, AUDIENCE_TEAMS),
+    reminderHours,
   };
 }
 
@@ -39,7 +51,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
   const { id } = await run(
-    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience, reminder_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     m.title,
     m.date,
     m.start,
@@ -48,7 +60,10 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
     m.rsvp,
     m.notes,
     m.audience,
+    m.reminderHours,
   );
+  // One-off meetings take answers right away: send "Will you come?" now rather than on the next tick.
+  await sendRsvpNotifications().catch((err) => console.error("[orbit] RSVP notifications failed", err));
   revalidatePath("/", "layout");
   redirect(`/meetings/${id}`);
 }
@@ -58,7 +73,11 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
   await run(
-    "UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ?, audience = ? WHERE id = ?",
+    `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ?, audience = ?,
+       -- A new reminder time or a moved meeting gets its reminder again.
+       reminder_sent_at = CASE WHEN reminder_hours IS DISTINCT FROM ?::int OR date <> ? OR start_time <> ? THEN NULL ELSE reminder_sent_at END,
+       reminder_hours = ?
+     WHERE id = ?`,
     m.title,
     m.date,
     m.start,
@@ -67,6 +86,10 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     m.rsvp,
     m.notes,
     m.audience,
+    m.reminderHours,
+    m.date,
+    m.start,
+    m.reminderHours,
     id,
   );
   revalidatePath("/", "layout");
@@ -142,14 +165,17 @@ export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormS
   const applies = appliesValue === "in_season" || appliesValue === "off_season" ? appliesValue : "all";
   if (!(weekday >= 0 && weekday <= 6)) return { error: "Pick a day." };
   if (!TIME_RE.test(start) || !TIME_RE.test(end) || end <= start) return { error: "Enter a start time and a later end time." };
+  const reminderHours = readReminder(fd);
+  if (reminderHours === "invalid") return { error: REMINDER_ERROR };
   await run(
-    "INSERT INTO schedule (weekday, start_time, end_time, title, applies, audience) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO schedule (weekday, start_time, end_time, title, applies, audience, reminder_hours) VALUES (?, ?, ?, ?, ?, ?, ?)",
     weekday,
     start,
     end,
     title,
     applies,
     readAudience(fd, AUDIENCE_TEAMS),
+    reminderHours,
   );
   await ensureScheduledMeetings();
   revalidatePath("/", "layout");

@@ -2,20 +2,22 @@ import { nameList } from "./alerts";
 import { computeAttendance } from "./attendance";
 import { all, run } from "./db";
 import { fmtTime, relativeDay } from "./format";
-import { meetingWindow, meetingsBetween, rsvpDeadline, type Meeting } from "./meetings";
+import { meetingWindow, openRsvpMeetings, rsvpDeadline, type Meeting } from "./meetings";
 import { pushToCaptains, pushToUsers, type PushPayload } from "./push";
 import { getSettings } from "./settings";
 import { addDays, localParts } from "./timeutil";
 
 // The RSVP timeline of each meeting with RSVPs, in hours before the start (from Settings):
-//   rsvp_open_hours      members can answer; those with reminders on get "Will you come?"
+//   rsvp_open_hours      members can answer (one-off meetings: from creation); those with
+//                        reminders on get "Will you come?"
 //   rsvp_reminder_hours  members who still haven't answered get a reminder
 //   rsvp_close_hours     answers close; captains get the list of who didn't answer
+// Plus each meeting's own reminder (meetings.reminder_hours, set by a captain) for everyone expected.
 // Each step happens once per meeting, claimed in its meetings.*_at column. Called every minute.
 
 const HOUR = 3_600_000;
 
-type Step = "rsvp_open_push_at" | "rsvp_reminder_at" | "rsvp_closed_at";
+type Step = "rsvp_open_push_at" | "rsvp_reminder_at" | "rsvp_closed_at" | "reminder_sent_at";
 
 /** Marks a step done for the meeting; false when another tick already did it. */
 async function claim(step: Step, m: Meeting, now: Date) {
@@ -37,13 +39,10 @@ async function send(step: string, m: Meeting, to: number[] | "captains", payload
 }
 
 export async function sendRsvpNotifications(now = new Date()) {
-  const { rsvp_open_hours, rsvp_reminder_hours, rsvp_close_hours, timezone } = await getSettings();
-  const today = localParts(now, timezone).date;
-  for (const m of await meetingsBetween(today, addDays(today, Math.ceil(rsvp_open_hours / 24) + 1), false)) {
-    if (!m.rsvp) continue;
+  const { rsvp_reminder_hours, rsvp_close_hours } = await getSettings();
+  for (const m of await openRsvpMeetings(now)) {
     const { start } = meetingWindow(m);
     const left = start.getTime() - now.getTime();
-    if (left <= 0 || left > rsvp_open_hours * HOUR) continue;
     const when = `${m.title} · ${relativeDay(m.date)} ${fmtTime(start)}`;
 
     // Answers have closed: tell the captains who didn't answer. Members get nothing more.
@@ -74,5 +73,30 @@ export async function sendRsvpNotifications(now = new Date()) {
         tag: `rsvp-${m.id}`,
       });
     }
+  }
+}
+
+/** Each meeting's own reminder, `reminder_hours` before the start, to everyone expected except those who can't come. */
+export async function sendMeetingReminders(now = new Date()) {
+  const today = localParts(now, (await getSettings()).timezone).date;
+  // Reminders are at most a week ahead (see actions/meetings.ts).
+  const due = await all<Meeting>(
+    "SELECT * FROM meetings WHERE reminder_hours > 0 AND reminder_sent_at IS NULL AND cancelled = 0 AND date >= ? AND date <= ?",
+    today,
+    addDays(today, 8),
+  );
+  for (const m of due) {
+    const { start, end } = meetingWindow(m);
+    const left = start.getTime() - now.getTime();
+    if (left <= 0 || left > m.reminder_hours! * HOUR) continue;
+    if (!(await claim("reminder_sent_at", m, now))) continue;
+    const rows = (await computeAttendance([m])).get(m.id) ?? new Map();
+    const to = [...rows].filter(([, e]) => e.rsvp?.response !== "no").map(([id]) => id as number);
+    await send("meeting reminder", m, to, {
+      title: `Reminder: ${m.title}`,
+      body: `${relativeDay(m.date)} ${fmtTime(start)}–${fmtTime(end)}. See you there!`,
+      url: "/",
+      tag: `meeting-${m.id}`,
+    });
   }
 }

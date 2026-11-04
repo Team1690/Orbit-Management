@@ -2,19 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { removePushSubscription, savePushSubscription, sendTestPush } from "@/actions/push";
+import { Card } from "./ui";
 
 type State = "loading" | "on" | "off" | "denied" | "ios-install" | "insecure" | "unsupported";
+type What = "alerts" | "reminders";
 
 function keyBytes(base64: string) {
   const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
 }
 
-/** Turns notifications on or off for the device in use: "alerts" for captains, "reminders" for members. */
-export function PushToggle({ publicKey, what = "alerts" }: { publicKey: string; what?: "alerts" | "reminders" }) {
+/** Whether this device gets notifications, and the actions to change that. */
+function usePush(publicKey: string, what: What) {
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /** Turned on just now, on this page (so a prompt can say so before it goes away). */
+  const [justEnabled, setJustEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -39,6 +43,7 @@ export function PushToggle({ publicKey, what = "alerts" }: { publicKey: string; 
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
       const { ok } = await savePushSubscription(sub.toJSON());
       setState(ok ? "on" : "off");
+      setJustEnabled(ok);
       if (!ok) setNote("This browser's push service isn't supported.");
     } catch {
       setNote(`Couldn't turn on ${what} on this device.`);
@@ -68,6 +73,11 @@ export function PushToggle({ publicKey, what = "alerts" }: { publicKey: string; 
     setBusy(false);
   }
 
+  return { state, busy, note, justEnabled, enable, disable, test };
+}
+
+function Controls({ push, what }: { push: ReturnType<typeof usePush>; what: What }) {
+  const { state, busy, note, enable, disable, test } = push;
   const label = what === "alerts" ? "Alerts" : "Reminders";
   const messages: Partial<Record<State, string>> = {
     loading: "Checking this device…",
@@ -104,5 +114,32 @@ export function PushToggle({ publicKey, what = "alerts" }: { publicKey: string; 
       )}
       {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
     </div>
+  );
+}
+
+/** Turns notifications on or off for the device in use: "alerts" for captains, "reminders" for members. */
+export function PushToggle({ publicKey, what = "alerts" }: { publicKey: string; what?: What }) {
+  return <Controls push={usePush(publicKey, what)} what={what} />;
+}
+
+/**
+ * The home screen's "Reminders" card. It asks to turn reminders on and disappears once they
+ * are on for this device; they can still be tested or turned off in Profile.
+ */
+export function ReminderPrompt({ publicKey }: { publicKey: string }) {
+  const push = usePush(publicKey, "reminders");
+  if (push.state === "loading" || push.state === "unsupported" || push.state === "insecure") return null;
+  if (push.state === "on") {
+    return push.justEnabled ? (
+      <Card title="Reminders">
+        <p className="text-sm font-medium text-emerald-700">Reminders are on for this device. You can turn them off in Profile.</p>
+      </Card>
+    ) : null;
+  }
+  return (
+    <Card title="Reminders">
+      <p className="mb-3 text-sm text-slate-600">Get a notification when you can answer for a meeting, and a reminder before it.</p>
+      <Controls push={push} what="reminders" />
+    </Card>
   );
 }
