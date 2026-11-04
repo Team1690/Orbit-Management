@@ -1,8 +1,6 @@
 import type { Audience } from "@/lib/audience";
 import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
-
-const chip =
-  "flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 py-1.5 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-800";
+import { CHIP_CLASS as chip } from "./ui";
 
 /** "Who needs to come": teams and/or individual students; nothing ticked means the whole team. */
 export function AudiencePicker({

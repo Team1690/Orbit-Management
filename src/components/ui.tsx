@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import type { AttendanceEntry } from "@/lib/attendance";
 import { lateByLabel } from "@/lib/late-by";
 
+/** A tickable chip: a <label> around a checkbox that highlights when checked. */
+export const CHIP_CLASS =
+  "flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 py-1.5 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-800";
+
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

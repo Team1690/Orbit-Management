@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusIcon } from "@/components/icons";
+import { DownloadIcon, PlusIcon } from "@/components/icons";
 import { Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { summarize, summaryFor } from "@/lib/attendance";
 import { requireCaptain } from "@/lib/auth";
@@ -50,9 +50,14 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
         title="Members"
         subtitle={`${members.length} shown · hours and attendance for ${period.label}`}
         actions={
-          <Link href="/members/new" className="btn btn-primary">
-            <PlusIcon /> Add members
-          </Link>
+          <>
+            <Link href="/members/export" className="btn btn-secondary">
+              <DownloadIcon /> Export CSV
+            </Link>
+            <Link href="/members/new" className="btn btn-primary">
+              <PlusIcon /> Add members
+            </Link>
+          </>
         }
       />
 

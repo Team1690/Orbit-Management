@@ -39,6 +39,8 @@ export const SUBTEAMS = ["CAD", "Mechanical", "Robot software", "Applications"];
 export const EXTRA_TEAMS = ["Strategy", "Electronics", "Drive team", "Media", "Community outreach"];
 export const GRADES = ["9", "10", "11", "12", "Alumni"];
 export const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+/** A filter choice for members who left a field empty (no grade, subteam or shirt size). */
+export const NOT_SET = "none";
 /** Suggestions for the school-subject fields; any other text is allowed too. */
 export const SCHOOL_SUBJECTS = [
   "Physics",
