@@ -15,6 +15,9 @@ export type Meeting = {
   schedule_id: number | null;
   missing_alert_at: string | null;
   slack_sent_at: string | null;
+  rsvp_open_push_at: string | null;
+  rsvp_reminder_at: string | null;
+  rsvp_closed_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";
@@ -45,6 +48,8 @@ export type Rsvp = {
   /** For "late": the upper end of the expected delay in minutes (see late-by.ts). */
   late_by_min: number | null;
   responded_at: string;
+  /** The captain who set this answer, or null when the member answered. */
+  updated_by: number | null;
 };
 
 export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -102,18 +107,32 @@ export async function rsvpsFor(meetingIds: number[]) {
   return all<Rsvp>(`SELECT * FROM rsvps WHERE meeting_id IN (${meetingIds.map(() => "?").join(",")})`, ...meetingIds);
 }
 
-export async function setRsvp(meetingId: number, userId: number, response: RsvpResponse, note: string | null, lateByMin: number | null) {
+/** Saves an answer. `updatedBy` is the captain who set it, or null when the member answered. */
+export async function setRsvp(
+  meetingId: number,
+  userId: number,
+  response: RsvpResponse,
+  note: string | null,
+  lateByMin: number | null,
+  updatedBy: number | null = null,
+) {
   await run(
-    `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(meeting_id, user_id) DO UPDATE SET response = excluded.response, note = excluded.note,
-       late_by_min = excluded.late_by_min, responded_at = excluded.responded_at`,
+       late_by_min = excluded.late_by_min, responded_at = excluded.responded_at, updated_by = excluded.updated_by`,
     meetingId,
     userId,
     response,
     note,
     lateByMin,
     new Date().toISOString(),
+    updatedBy,
   );
+}
+
+/** When members stop being able to answer, `closeHours` before the start; null when there's no deadline. */
+export function rsvpDeadline(m: Pick<Meeting, "date" | "start_time" | "end_time">, closeHours: number) {
+  return closeHours > 0 ? new Date(meetingWindow(m).start.getTime() - closeHours * 3_600_000) : null;
 }
 
 export function listSchedule() {

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCaptain } from "@/lib/auth";
-import { run, tx } from "@/lib/db";
+import { one, run, tx } from "@/lib/db";
 import { DATE_RE, TIME_RE, bool, optStr, str, type FormState } from "@/lib/forms";
-import { ensureScheduledMeetings } from "@/lib/meetings";
+import { LATE_BY_OPTIONS } from "@/lib/late-by";
+import { ensureScheduledMeetings, setRsvp, type RsvpResponse } from "@/lib/meetings";
 import { today } from "@/lib/periods";
 
 function readMeeting(fd: FormData) {
@@ -92,6 +93,27 @@ export async function setAttendance(fd: FormData) {
     );
   }
   revalidatePath(`/meetings/${meetingId}`);
+}
+
+/**
+ * A captain sets or clears a member's RSVP, at any time (also after the deadline or the meeting).
+ * `answer` is "none", "yes", "no" or "late:<minutes>"; the member's own note is kept.
+ */
+export async function setMemberRsvp(fd: FormData) {
+  const me = await requireCaptain();
+  const meetingId = Number(fd.get("meeting_id"));
+  const userId = Number(fd.get("user_id"));
+  const [response, minutes] = str(fd, "answer").split(":");
+  if (!Number.isSafeInteger(meetingId) || !Number.isSafeInteger(userId)) return;
+  if (response === "none") {
+    await run("DELETE FROM rsvps WHERE meeting_id = ? AND user_id = ?", meetingId, userId);
+  } else {
+    const lateBy = response === "late" ? Number(minutes) : null;
+    if (!["yes", "late", "no"].includes(response) || (lateBy !== null && !LATE_BY_OPTIONS.includes(lateBy))) return;
+    const current = await one<{ note: string | null }>("SELECT note FROM rsvps WHERE meeting_id = ? AND user_id = ?", meetingId, userId);
+    await setRsvp(meetingId, userId, response as RsvpResponse, response === "yes" ? null : (current?.note ?? null), lateBy, me.id);
+  }
+  revalidatePath("/", "layout");
 }
 
 export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormState> {

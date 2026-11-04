@@ -2,7 +2,8 @@ import webpush from "web-push";
 import { all, run, tx } from "./db";
 import { getSettings, setSetting } from "./settings";
 
-// Web Push: notifications on captains' phones (installed app on iPhone, any browser on Android).
+// Web Push: notifications on phones (installed app on iPhone, any browser on Android). Captains get
+// alerts; members get RSVP reminders.
 
 export type PushPayload = { title: string; body: string; url: string; tag?: string };
 
@@ -43,9 +44,19 @@ export async function saveSubscription(userId: number, sub: { endpoint: string; 
 
 /** Sends to every device where an active captain turned on alerts. Returns how many got it. */
 export async function pushToCaptains(payload: PushPayload) {
+  const captains = await all<{ id: number }>("SELECT id FROM users WHERE role = 'captain' AND active = 1");
+  return pushToUsers(
+    captains.map((c) => c.id),
+    payload,
+  );
+}
+
+/** Sends to every device where these users turned on notifications. Returns how many got it. */
+export async function pushToUsers(userIds: number[], payload: PushPayload) {
+  if (userIds.length === 0) return 0;
   const subs = await all<{ endpoint: string; p256dh: string; auth: string }>(
-    `SELECT s.endpoint, s.p256dh, s.auth FROM push_subscriptions s JOIN users u ON u.id = s.user_id
-      WHERE u.role = 'captain' AND u.active = 1`,
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
+    ...userIds,
   );
   if (subs.length === 0) return 0;
   const vapidDetails = { subject: vapidSubject(), ...(await vapidKeys()) };

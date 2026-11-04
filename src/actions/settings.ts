@@ -16,6 +16,8 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   const timezone = str(fd, "timezone");
   const grace = int(fd, "late_grace_min");
   const rsvpHours = int(fd, "rsvp_open_hours");
+  const remindHours = int(fd, "rsvp_reminder_hours");
+  const closeHours = int(fd, "rsvp_close_hours");
   const autoOut = str(fd, "auto_checkout_time");
   const daysAhead = int(fd, "schedule_days_ahead");
   const alertMin = int(fd, "missing_alert_min");
@@ -28,6 +30,15 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   if (grace === null || grace < 0 || grace > 120) return { error: "Late grace must be 0–120 minutes." };
   if (alertMin === null || alertMin < 1 || alertMin > 120) return { error: "The missing-members alert must be 1–120 minutes after the start." };
   if (rsvpHours === null || rsvpHours < 1 || rsvpHours > 336) return { error: "RSVP window must be 1–336 hours." };
+  if (remindHours === null || remindHours < 0 || remindHours >= rsvpHours) {
+    return { error: `The reminder must be 0 (off) or fewer hours than the RSVP window (${rsvpHours}).` };
+  }
+  if (closeHours === null || closeHours < 0 || closeHours >= rsvpHours) {
+    return { error: `Answers must close 0 (never) or fewer hours before than the RSVP window (${rsvpHours}).` };
+  }
+  if (remindHours > 0 && closeHours > 0 && remindHours <= closeHours) {
+    return { error: "Send the reminder before answers close: more hours before the meeting." };
+  }
   if (!TIME_RE.test(autoOut)) return { error: "Auto check-out time must look like 23:00." };
   if (daysAhead === null || daysAhead < 7 || daysAhead > 90) return { error: "Plan meetings 7–90 days ahead." };
   if (rotate === null || rotate < 1 || rotate > 60) return { error: "The QR code must change every 1–60 minutes." };
@@ -39,6 +50,8 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   await setSetting("late_grace_min", grace);
   await setSetting("missing_alert_min", alertMin);
   await setSetting("rsvp_open_hours", rsvpHours);
+  await setSetting("rsvp_reminder_hours", remindHours);
+  await setSetting("rsvp_close_hours", closeHours);
   await setSetting("auto_checkout_time", autoOut);
   await setSetting("schedule_days_ahead", daysAhead);
   await setSetting("qr_rotate_min", rotate);

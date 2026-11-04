@@ -10,6 +10,10 @@ export type Settings = {
   missing_alert_min: number;
   /** How many hours before a meeting members are asked to RSVP. */
   rsvp_open_hours: number;
+  /** Hours before a meeting when members who haven't answered get a reminder (0 = off). */
+  rsvp_reminder_hours: number;
+  /** Hours before a meeting when answers close and captains get the list of who didn't answer (0 = no deadline). */
+  rsvp_close_hours: number;
   /** Local time (HH:MM) when anyone still checked in is checked out automatically. */
   auto_checkout_time: string;
   /** How many days ahead meetings are created from the weekly schedule. */
@@ -38,6 +42,8 @@ const DEFAULTS: Omit<Settings, "qr_secret" | "display_key"> = {
   late_grace_min: 1,
   missing_alert_min: 5,
   rsvp_open_hours: 72,
+  rsvp_reminder_hours: 24,
+  rsvp_close_hours: 6,
   auto_checkout_time: "23:00",
   schedule_days_ahead: 21,
   qr_rotate_min: 1,
@@ -50,6 +56,8 @@ const NUMERIC = new Set([
   "late_grace_min",
   "missing_alert_min",
   "rsvp_open_hours",
+  "rsvp_reminder_hours",
+  "rsvp_close_hours",
   "schedule_days_ahead",
   "qr_rotate_min",
   "flag_absences",

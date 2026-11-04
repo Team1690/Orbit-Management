@@ -1,6 +1,7 @@
 import { checkMissingAlerts } from "./alerts";
 import { all, nowIso, onServerlessHost, run } from "./db";
 import { ensureScheduledMeetings, meetingWindow, meetingsOn } from "./meetings";
+import { sendRsvpNotifications } from "./rsvp-reminders";
 import { getSettings } from "./settings";
 import { sendMeetingSummaries } from "./slack";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
@@ -39,6 +40,7 @@ export async function runTick(force = false) {
   if (!force && now - lastTick < 30_000) return;
   lastTick = now;
   await ensureScheduledMeetings(new Date(now));
+  await sendRsvpNotifications(new Date(now));
   await checkMissingAlerts(new Date(now));
   await sendMeetingSummaries(new Date(now));
   await autoCheckout(new Date(now));

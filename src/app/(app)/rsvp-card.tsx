@@ -20,6 +20,8 @@ export function RsvpCard({
   current,
   currentNote,
   currentLateBy,
+  answerBy,
+  closed,
 }: {
   meetingId: number;
   title: string;
@@ -27,6 +29,10 @@ export function RsvpCard({
   current: Response | null;
   currentNote: string | null;
   currentLateBy: number | null;
+  /** When answers close, e.g. "Today 10:00"; null when there's no deadline. */
+  answerBy: string | null;
+  /** Past the deadline: only "Coming" and "Late" can still switch, until the start. */
+  closed: boolean;
 }) {
   const [choice, setChoice] = useState<Response | null>(null);
   const [state, action, pending] = useActionState(async (prev: Awaited<ReturnType<typeof respondRsvp>>, fd: FormData) => {
@@ -35,6 +41,8 @@ export function RsvpCard({
     return result;
   }, undefined);
   const shown = choice ?? current;
+  const locked = closed && (current === null || current === "no");
+  const options = closed ? OPTIONS.filter((o) => o.value !== "no") : OPTIONS;
 
   return (
     <div className="card card-pad">
@@ -43,16 +51,24 @@ export function RsvpCard({
           <div className="text-xs font-semibold tracking-wide text-brand-600 uppercase">Will you come?</div>
           <div className="mt-0.5 font-semibold text-slate-900">{title}</div>
           <div className="text-sm text-slate-500">{when}</div>
+          {answerBy && !closed && !current && <div className="text-xs font-medium text-amber-700">Answer by {answerBy}</div>}
         </div>
         {current && !choice && (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Answered</span>
         )}
       </div>
 
+      {locked ? (
+        <p className="mt-3 text-sm text-slate-600">
+          {current === "no" ? "You said you can't come. " : "You didn't answer in time. "}
+          Answers for this meeting are closed. Ask a captain to change yours.
+        </p>
+      ) : (
       <form action={action} className="mt-3">
         <input type="hidden" name="meeting_id" value={meetingId} />
-        <div className="grid grid-cols-3 gap-2">
-          {OPTIONS.map((o) => {
+        {closed && <p className="mb-2 text-xs text-slate-500">Answers are closed, but you can still switch between Coming and Late until the meeting starts.</p>}
+        <div className={`grid gap-2 ${closed ? "grid-cols-2" : "grid-cols-3"}`}>
+          {options.map((o) => {
             const Icon = o.icon;
             const selected = shown === o.value;
             return (
@@ -123,6 +139,7 @@ export function RsvpCard({
         )}
         {state?.error && <p className="mt-2 text-sm font-medium text-rose-600">{state.error}</p>}
       </form>
+      )}
     </div>
   );
 }

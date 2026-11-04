@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deleteMeeting, setAttendance, setCancelled, updateMeeting } from "@/actions/meetings";
+import { deleteMeeting, setAttendance, setCancelled, setMemberRsvp, updateMeeting } from "@/actions/meetings";
 import { ActionForm, AutoRefresh, AutoSubmitSelect, ConfirmButton, Reveal, SubmitButton } from "@/components/client";
 import { MonitorIcon } from "@/components/icons";
-import { AttendanceBadge, Badge, Banner, Card, Empty, Field, PageHeader, RsvpBadge } from "@/components/ui";
+import { AttendanceBadge, Badge, Banner, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { computeAttendance, type AttendanceEntry } from "@/lib/attendance";
 import { requireCaptain } from "@/lib/auth";
 import { fmtDate, fmtDateTime, fmtTime, minutesLate } from "@/lib/format";
+import { LATE_BY_OPTIONS, lateByLabel } from "@/lib/late-by";
 import { getMeeting, meetingWindow } from "@/lib/meetings";
 import { listMembers } from "@/lib/members";
 import { getSettings } from "@/lib/settings";
@@ -15,6 +16,12 @@ import { getSettings } from "@/lib/settings";
 export const metadata: Metadata = { title: "Meeting" };
 
 const ORDER: Record<AttendanceEntry["status"], number> = { missing: 0, absent: 1, late: 2, upcoming: 3, not_required: 4, present: 5 };
+
+/** The RSVP dropdown's value for a member's answer. */
+function rsvpValue(e: AttendanceEntry) {
+  if (!e.rsvp) return "none";
+  return e.rsvp.response === "late" ? `late:${e.rsvp.late_by_min ?? ""}` : e.rsvp.response;
+}
 
 export default async function MeetingPage({ params }: PageProps<"/meetings/[id]">) {
   await requireCaptain();
@@ -119,9 +126,32 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                         {m.subteam && <div className="text-xs text-slate-500">{m.subteam}</div>}
                       </td>
                       <td>
-                        {meeting.rsvp ? <RsvpBadge response={e.rsvp?.response} lateByMin={e.rsvp?.late_by_min} /> : "—"}
+                        {meeting.rsvp ? (
+                          <form action={setMemberRsvp}>
+                            <input type="hidden" name="meeting_id" value={id} />
+                            <input type="hidden" name="user_id" value={userId} />
+                            <AutoSubmitSelect name="answer" defaultValue={rsvpValue(e)} className="input w-auto py-1 text-xs" key={rsvpValue(e)} aria-label="RSVP">
+                              <option value="none">No answer</option>
+                              <option value="yes">Coming</option>
+                              {e.rsvp?.response === "late" && !e.rsvp.late_by_min && <option value="late:">Late</option>}
+                              {LATE_BY_OPTIONS.map((min) => (
+                                <option key={min} value={`late:${min}`}>
+                                  Late · {lateByLabel(min)}
+                                </option>
+                              ))}
+                              <option value="no">Can&apos;t come</option>
+                            </AutoSubmitSelect>
+                          </form>
+                        ) : (
+                          "—"
+                        )}
                         {e.rsvp?.note && <div className="mt-0.5 max-w-56 text-xs text-slate-500">&ldquo;{e.rsvp.note}&rdquo;</div>}
-                        {e.rsvp && <div className="text-[11px] text-slate-400">{fmtDateTime(e.rsvp.responded_at)}</div>}
+                        {e.rsvp && (
+                          <div className="text-[11px] text-slate-400">
+                            {fmtDateTime(e.rsvp.responded_at)}
+                            {e.rsvp.updated_by && " · set by a captain"}
+                          </div>
+                        )}
                       </td>
                       <td className="whitespace-nowrap tabular-nums">
                         {e.firstIn ? fmtTime(e.firstIn) : <span className="text-slate-400">—</span>}

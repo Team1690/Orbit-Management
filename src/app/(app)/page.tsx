@@ -3,15 +3,18 @@ import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
+import { PushToggle } from "@/components/push-toggle";
 import { AttendanceBadge, Avatar, Badge, Banner, Card, Empty, RsvpBadge, Stat } from "@/components/ui";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth";
 import { firstName, fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, pct, relativeDay } from "@/lib/format";
-import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpsFor } from "@/lib/meetings";
+import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpDeadline, rsvpsFor } from "@/lib/meetings";
 import { mentorPlan } from "@/lib/mentors";
 import { currentPeriod, thisWeek, today } from "@/lib/periods";
+import { vapidPublicKey } from "@/lib/push";
+import { getSettings, tz } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
-import { addDays } from "@/lib/timeutil";
+import { addDays, localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
 import { RsvpCard } from "./rsvp-card";
 
@@ -34,6 +37,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const weekHours = await userHours(user.id, week.from, week.to);
   const summary = summaryFor(await summarize(await meetingsBetween(period.startDate, period.endDate, false), [user.id]), user.id);
 
+  const { rsvp_close_hours } = await getSettings();
+  const publicKey = await vapidPublicKey();
   const rsvpMeetings = await openRsvpMeetings();
   const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
@@ -167,6 +172,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       {!mentor && rsvpMeetings.map((m) => {
         const { start, end } = meetingWindow(m);
         const r = myRsvps.get(m.id);
+        const deadline = rsvpDeadline(m, rsvp_close_hours);
         return (
           <RsvpCard
             key={m.id}
@@ -176,9 +182,18 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             current={r?.response ?? null}
             currentNote={r?.note ?? null}
             currentLateBy={r?.late_by_min ?? null}
+            answerBy={deadline ? `${relativeDay(localParts(deadline, tz()).date)} ${fmtTime(deadline)}` : null}
+            closed={!!deadline && deadline <= new Date()}
           />
         );
       })}
+
+      {!mentor && (
+        <Card title="Reminders">
+          <p className="mb-3 text-sm text-slate-600">Get a notification when you can answer for a meeting, and a reminder if you haven&apos;t answered.</p>
+          <PushToggle publicKey={publicKey} what="reminders" />
+        </Card>
+      )}
 
       <div className={`grid gap-3 ${mentor ? "grid-cols-2" : "grid-cols-3"}`}>
         <Stat label="This week" value={fmtHours(weekHours.ms)} hint="hours" />

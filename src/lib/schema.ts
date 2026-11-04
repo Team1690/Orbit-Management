@@ -185,6 +185,16 @@ const MIGRATIONS: string[] = [
   -- When the summary of who can't come or will be late was posted to Slack (once per meeting).
   ALTER TABLE meetings ADD COLUMN slack_sent_at TEXT;
   `,
+
+  // 3: RSVP notifications for members, the answer deadline, and captains changing answers.
+  `
+  -- The captain who set this answer; NULL when the member answered themselves.
+  ALTER TABLE rsvps ADD COLUMN updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  -- When each one-time step ran: "answers are open" notification, the reminder, and closing answers.
+  ALTER TABLE meetings ADD COLUMN rsvp_open_push_at TEXT;
+  ALTER TABLE meetings ADD COLUMN rsvp_reminder_at TEXT;
+  ALTER TABLE meetings ADD COLUMN rsvp_closed_at TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

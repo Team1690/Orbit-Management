@@ -14,7 +14,7 @@ export async function alertsToday() {
   return all<Alert>("SELECT * FROM alerts WHERE created_at >= ? ORDER BY created_at DESC", start.toISOString());
 }
 
-function nameList(names: string[]) {
+export function nameList(names: string[]) {
   return names.length <= 12 ? names.join(", ") : `${names.slice(0, 12).join(", ")} and ${names.length - 12} more`;
 }
 
