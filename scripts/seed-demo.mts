@@ -49,7 +49,8 @@ await db.transaction(async (q) => {
   const EXTRA_TEAMS = ["Strategy", "Electronics", "Drive team", "Media", "Community outreach"];
   const SUBJECTS = ["Physics", "Computer Science", "Chemistry", "Biology", "Electronics", "Biotechnology", "Economics", "Literature", "Arts"];
   const REASONS = ["Exam tomorrow", "Family event", "Sick", "Doctor appointment", "Youth movement activity", "Matriculation exam prep", "Trip with class"];
-  const LATE_NOTES = ["~17:00, after tutoring", "Bus is late", "Coming at 16:45", "After basketball practice"];
+  const LATE_NOTES = ["After tutoring", "Bus is late", "Dentist first", "After basketball practice"];
+  const LATE_BY = [10, 20, 30, 40]; // minutes, the upper end of each "How late?" option
   const createdAt = iso(new Date(now.getTime() - 60 * 86_400_000));
   const pw = hashPassword("demo1234");
 
@@ -139,7 +140,7 @@ await db.transaction(async (q) => {
     "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, schedule_id, cancelled) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
   );
   const insertVisit = insert(q, "INSERT INTO visits (user_id, check_in, check_out, in_method, out_method) VALUES ($1, $2, $3, $4, $5)");
-  const insertRsvp = insert(q, "INSERT INTO rsvps (meeting_id, user_id, response, note, responded_at) VALUES ($1, $2, $3, $4, $5)", false);
+  const insertRsvp = insert(q, "INSERT INTO rsvps (meeting_id, user_id, response, note, responded_at, late_by_min) VALUES ($1, $2, $3, $4, $5, $6)", false);
 
   async function simulateMeeting(meetingId: number, start: Date, end: Date, live: boolean) {
     for (const m of members) {
@@ -147,12 +148,12 @@ await db.transaction(async (q) => {
       const late = comes && rand() > m.punctual;
       const rsvpAt = iso(new Date(start.getTime() - minutes(60 * (2 + rand() * 40))));
       if (comes) {
-        if (late && rand() < 0.5) await insertRsvp(meetingId, m.id, "late", pick(LATE_NOTES), rsvpAt);
-        else if (rand() < 0.75) await insertRsvp(meetingId, m.id, "yes", null, rsvpAt);
+        if (late && rand() < 0.5) await insertRsvp(meetingId, m.id, "late", pick(LATE_NOTES), rsvpAt, pick(LATE_BY));
+        else if (rand() < 0.75) await insertRsvp(meetingId, m.id, "yes", null, rsvpAt, null);
       } else if (rand() < 0.6) {
-        await insertRsvp(meetingId, m.id, "no", pick(REASONS), rsvpAt);
+        await insertRsvp(meetingId, m.id, "no", pick(REASONS), rsvpAt, null);
       } else if (rand() < 0.35) {
-        await insertRsvp(meetingId, m.id, "yes", null, rsvpAt); // said yes, didn't come
+        await insertRsvp(meetingId, m.id, "yes", null, rsvpAt, null); // said yes, didn't come
       }
       if (!comes) continue;
 
@@ -205,9 +206,9 @@ await db.transaction(async (q) => {
       for (const m of members) {
         if (m.id === members[2].id) continue; // leave the demo member's RSVP open
         const r = rand();
-        if (r < 0.55) await insertRsvp(meetingId, m.id, "yes", null, iso(now));
-        else if (r < 0.62) await insertRsvp(meetingId, m.id, "late", pick(LATE_NOTES), iso(now));
-        else if (r < 0.7) await insertRsvp(meetingId, m.id, "no", pick(REASONS), iso(now));
+        if (r < 0.55) await insertRsvp(meetingId, m.id, "yes", null, iso(now), null);
+        else if (r < 0.62) await insertRsvp(meetingId, m.id, "late", pick(LATE_NOTES), iso(now), pick(LATE_BY));
+        else if (r < 0.7) await insertRsvp(meetingId, m.id, "no", pick(REASONS), iso(now), null);
       }
     }
   }

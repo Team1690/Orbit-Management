@@ -8,6 +8,7 @@ import { AttendanceBadge, Avatar, Badge, Card, Empty, Field, PageHeader, Stat } 
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
 import { requireCaptain } from "@/lib/auth";
 import { fmtDate, fmtDateTime, fmtDay, fmtDuration, fmtHours, fmtTime, pct } from "@/lib/format";
+import { rsvpDetail } from "@/lib/late-by";
 import { WEEKDAY_NAMES, meetingWindow, meetingsBetween } from "@/lib/meetings";
 import { mentorSlots } from "@/lib/mentors";
 import { subjectsText } from "@/components/member-fields";
@@ -180,7 +181,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                         </Link>
                         <div className="truncate text-xs text-slate-500">
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
-                          {e?.rsvp && e.rsvp.response !== "yes" && e.rsvp.note && ` · "${e.rsvp.note}"`}
+                          {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
                           {e?.overridden && " · set by captain"}
                         </div>
                       </div>

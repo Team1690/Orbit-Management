@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { addSeason, deleteSeason, regenerateDisplayKey, saveSettings, updateSeason } from "@/actions/settings";
+import { addSeason, deleteSeason, regenerateDisplayKey, saveSettings, saveSlack, sendSlackTest, updateSeason } from "@/actions/settings";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/client";
 import { PushToggle } from "@/components/push-toggle";
 import { Badge, Card, Field, PageHeader } from "@/components/ui";
@@ -51,6 +51,12 @@ export default async function SettingsPage() {
           <Field label="QR code changes every (minutes)" hint="A scan still works for 45 seconds after the code changes.">
             <input name="qr_rotate_min" type="number" min={1} max={60} defaultValue={s.qr_rotate_min} className="input" />
           </Field>
+          <Field label="Flag after this many absences" hint="In the last 30 days, with or without notice. Shown under Needs attention. 0 turns it off.">
+            <input name="flag_absences" type="number" min={0} max={30} defaultValue={s.flag_absences} className="input" />
+          </Field>
+          <Field label="Flag after this many late arrivals" hint="In the last 30 days. 0 turns it off.">
+            <input name="flag_lates" type="number" min={0} max={30} defaultValue={s.flag_lates} className="input" />
+          </Field>
           <div className="sm:col-span-2">
             <SubmitButton pendingText="Saving…">Save settings</SubmitButton>
           </div>
@@ -63,6 +69,33 @@ export default async function SettingsPage() {
           for each phone or computer you want alerts on. On iPhone it works in the app installed on the Home Screen.
         </p>
         <PushToggle publicKey={publicKey} />
+      </Card>
+
+      <Card title="Slack" actions={s.slack_webhook_url ? <Badge tone="green">Connected</Badge> : <Badge>Off</Badge>}>
+        <p className="mb-3 text-sm text-slate-600">
+          Before each meeting, post who can&apos;t come and who will be late (with how late) to a Slack channel. Reasons stay in the app. Paste the
+          channel&apos;s incoming webhook address; the README explains how to create one.
+        </p>
+        <ActionForm action={saveSlack} className="grid gap-4 sm:grid-cols-3">
+          <Field label="Webhook address" className="sm:col-span-2" hint="Starts with https://hooks.slack.com/. Leave empty to turn Slack off.">
+            <input name="slack_webhook_url" type="url" defaultValue={s.slack_webhook_url ?? ""} placeholder="https://hooks.slack.com/services/…" className="input" />
+          </Field>
+          <Field label="Send (hours before)">
+            <input name="slack_lead_hours" type="number" min={1} max={24} defaultValue={s.slack_lead_hours} className="input" />
+          </Field>
+          <div className="sm:col-span-3">
+            <SubmitButton className="btn btn-secondary" pendingText="Saving…">
+              Save
+            </SubmitButton>
+          </div>
+        </ActionForm>
+        {s.slack_webhook_url && (
+          <ActionForm action={sendSlackTest} className="mt-3">
+            <SubmitButton className="btn btn-secondary btn-sm" pendingText="Sending…">
+              Send a test message
+            </SubmitButton>
+          </ActionForm>
+        )}
       </Card>
 
       <Card title="Seasons" actions={<span className="text-xs text-slate-500">Used for hour totals and attendance</span>}>

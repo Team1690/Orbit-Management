@@ -16,6 +16,14 @@ export type Settings = {
   schedule_days_ahead: number;
   /** How often the check-in QR code changes, in minutes. */
   qr_rotate_min: number;
+  /** Flag members absent at least this many times in the last 30 days (0 = off). */
+  flag_absences: number;
+  /** Flag members late at least this many times in the last 30 days (0 = off). */
+  flag_lates: number;
+  /** Slack incoming webhook that gets the pre-meeting summary; empty = off. */
+  slack_webhook_url?: string;
+  /** How many hours before each meeting the Slack summary is posted. */
+  slack_lead_hours: number;
   qr_secret: string;
   /** Lets a projector or TV show the check-in QR without a captain logging in. */
   display_key: string;
@@ -33,9 +41,21 @@ const DEFAULTS: Omit<Settings, "qr_secret" | "display_key"> = {
   auto_checkout_time: "23:00",
   schedule_days_ahead: 21,
   qr_rotate_min: 1,
+  flag_absences: 3,
+  flag_lates: 3,
+  slack_lead_hours: 2,
 };
 
-const NUMERIC = new Set(["late_grace_min", "missing_alert_min", "rsvp_open_hours", "schedule_days_ahead", "qr_rotate_min"]);
+const NUMERIC = new Set([
+  "late_grace_min",
+  "missing_alert_min",
+  "rsvp_open_hours",
+  "schedule_days_ahead",
+  "qr_rotate_min",
+  "flag_absences",
+  "flag_lates",
+  "slack_lead_hours",
+]);
 
 // The last settings read, so tz() can stay synchronous for the date helpers. Refreshed by every
 // getSettings() call and loaded at startup (instrumentation.ts). Kept on globalThis because

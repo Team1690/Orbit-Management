@@ -119,7 +119,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                         {m.subteam && <div className="text-xs text-slate-500">{m.subteam}</div>}
                       </td>
                       <td>
-                        {meeting.rsvp ? <RsvpBadge response={e.rsvp?.response} /> : "—"}
+                        {meeting.rsvp ? <RsvpBadge response={e.rsvp?.response} lateByMin={e.rsvp?.late_by_min} /> : "—"}
                         {e.rsvp?.note && <div className="mt-0.5 max-w-56 text-xs text-slate-500">&ldquo;{e.rsvp.note}&rdquo;</div>}
                         {e.rsvp && <div className="text-[11px] text-slate-400">{fmtDateTime(e.rsvp.responded_at)}</div>}
                       </td>

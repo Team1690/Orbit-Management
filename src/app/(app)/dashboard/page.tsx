@@ -6,10 +6,11 @@ import { AlertIcon, MonitorIcon, PlusIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
 import { Avatar, Badge, Banner, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { alertsToday } from "@/lib/alerts";
-import { computeAttendance, summarize, type AttendanceEntry } from "@/lib/attendance";
+import { computeAttendance, summarize, type AttendanceEntry, type AttendanceSummary } from "@/lib/attendance";
 import { requireCaptain } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, minutesLate, pct, relativeDay } from "@/lib/format";
+import { rsvpDetail } from "@/lib/late-by";
 import { currentOrNextMeeting, meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
 import { listMembers, type Member } from "@/lib/members";
 import { mentorPlan } from "@/lib/mentors";
@@ -57,12 +58,18 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
   const no = by((e) => e.rsvp?.response === "no");
   const noAnswer = by((e) => !e.rsvp);
   const arrived = by((e) => e.status === "present" || e.status === "late");
-  const missingNoNotice = by((e) => (e.status === "missing" || e.status === "absent") && !e.notice);
-  const missingNotice = by((e) => (e.status === "missing" || e.status === "absent") && e.notice);
+  const notHere = (e: AttendanceEntry) => e.status === "missing" || e.status === "absent";
+  const missingNoNotice = by((e) => notHere(e) && !e.notice);
+  const expectedLate = by((e) => notHere(e) && e.notice && e.rsvp?.response === "late");
+  const missingNotice = by((e) => notHere(e) && e.notice && e.rsvp?.response !== "late");
   const lateArrivals = rows
     .filter(([, e]) => e.status === "late" && e.firstIn)
     .sort(([, a], [, b]) => Date.parse(b.firstIn!) - Date.parse(a.firstIn!));
-  const note = (id: number) => rows.find(([u]) => u === id)?.[1].rsvp?.note ?? null;
+  /** How late they said they'd be, and their note. */
+  const detail = (id: number) => {
+    const rsvp = rows.find(([u]) => u === id)?.[1].rsvp;
+    return rsvp ? rsvpDetail(rsvp) : null;
+  };
 
   return (
     <Card
@@ -116,9 +123,17 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
               </div>
               <NameList ids={missingNoNotice} members={members} />
             </div>
+            {expectedLate.length > 0 && (
+              <div>
+                <div className="mb-1.5 text-xs font-semibold tracking-wide text-amber-600 uppercase">Said they&apos;d be late ({expectedLate.length})</div>
+                <NameList ids={expectedLate} members={members} detail={detail} />
+              </div>
+            )}
             <div>
-              <div className="mb-1.5 text-xs font-semibold tracking-wide text-violet-600 uppercase">Gave notice ({missingNotice.length})</div>
-              <NameList ids={missingNotice} members={members} detail={note} />
+              <div className="mb-1.5 text-xs font-semibold tracking-wide text-violet-600 uppercase">
+                {expectedLate.length > 0 ? "Can't come, gave notice" : "Gave notice"} ({missingNotice.length})
+              </div>
+              <NameList ids={missingNotice} members={members} detail={detail} />
             </div>
           </div>
         </div>
@@ -141,10 +156,16 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
           </div>
           {!started && (
             <div className="space-y-3">
-              {(no.length > 0 || late.length > 0) && (
+              {late.length > 0 && (
                 <div>
-                  <div className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">Late or can&apos;t come</div>
-                  <NameList ids={[...late, ...no]} members={members} detail={note} />
+                  <div className="mb-1.5 text-xs font-semibold tracking-wide text-amber-600 uppercase">Coming late ({late.length})</div>
+                  <NameList ids={late} members={members} detail={detail} />
+                </div>
+              )}
+              {no.length > 0 && (
+                <div>
+                  <div className="mb-1.5 text-xs font-semibold tracking-wide text-rose-600 uppercase">Can&apos;t come ({no.length})</div>
+                  <NameList ids={no} members={members} detail={detail} />
                 </div>
               )}
               <div>
@@ -180,7 +201,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const t = today();
   const period = await currentPeriod();
-  const [members, present, alerts, { missing_alert_min }, mentorPlanToday, hours, meeting, summaries, recentSummaries, autoClosed, publicKey] =
+  const [members, present, alerts, settings, mentorPlanToday, hours, meeting, summaries, monthSummaries, autoClosed, publicKey] =
     await Promise.all([
       listMembers(),
       presentNow(),
@@ -190,7 +211,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       hoursByUser(period.from, period.to),
       currentOrNextMeeting(),
       meetingsBetween(period.startDate, t, false).then((ms) => summarize(ms)),
-      meetingsBetween(addDays(t, -14), t, false).then((ms) => summarize(ms)),
+      meetingsBetween(addDays(t, -29), t, false).then((ms) => summarize(ms)),
       all<{ id: number; user_id: number; check_in: string; check_out: string }>(
         "SELECT id, user_id, check_in, check_out FROM visits WHERE out_method = 'auto' AND check_in > ? ORDER BY check_in DESC LIMIT 10",
         new Date(Date.now() - 7 * 86_400_000).toISOString(),
@@ -209,17 +230,26 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     .filter(([id, s]) => memberMap.has(id) && s.meetings >= 3 && (s.rate ?? 1) < 0.7)
     .sort((a, b) => (a[1].rate ?? 0) - (b[1].rate ?? 0))
     .slice(0, 8);
-  const noNotice = [...recentSummaries]
-    .map(([id, s]) => [id, s.absent - s.absentNotice] as const)
-    .filter(([id, n]) => n > 0 && memberMap.has(id))
-    .sort((a, b) => b[1] - a[1]);
+  const { missing_alert_min, flag_absences, flag_lates } = settings;
+  /** Members whose count over the last 30 days reached the threshold from Settings (0 = off), highest first. */
+  const flagged = (count: (s: AttendanceSummary) => number, threshold: number) =>
+    threshold > 0
+      ? [...monthSummaries].filter(([id, s]) => memberMap.has(id) && count(s) >= threshold).sort((a, b) => count(b[1]) - count(a[1]))
+      : [];
+  const manyAbsences = flagged((s) => s.absent, flag_absences);
+  const manyLates = flagged((s) => s.late, flag_lates);
   const notJoined = members.filter((m) => !m.has_password);
   const leaders = [...hours]
     .filter(([id]) => students.has(id))
     .sort((a, b) => b[1].ms - a[1].ms)
     .slice(0, 8);
 
-  const attentionPeople = new Set([...lowAttendance.map(([id]) => id), ...noNotice.map(([id]) => id), ...autoClosed.map((v) => v.user_id)]);
+  const attentionPeople = new Set([
+    ...lowAttendance.map(([id]) => id),
+    ...manyAbsences.map(([id]) => id),
+    ...manyLates.map(([id]) => id),
+    ...autoClosed.map((v) => v.user_id),
+  ]);
   const attentionCount = attentionPeople.size + (notJoined.length ? 1 : 0);
 
   return (
@@ -358,16 +388,36 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <Empty>All good.</Empty>
             ) : (
               <div className="space-y-4 text-sm">
-                {noNotice.length > 0 && (
+                {manyAbsences.length > 0 && (
                   <div>
-                    <div className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">Absent without notice · last 14 days</div>
+                    <div className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      Absent {flag_absences}+ times · last 30 days
+                    </div>
                     <ul className="space-y-1">
-                      {noNotice.slice(0, 8).map(([id, n]) => (
-                        <li key={id} className="flex justify-between">
-                          <Link href={`/members/${id}`} className="hover:underline">
+                      {manyAbsences.slice(0, 8).map(([id, s]) => (
+                        <li key={id} className="flex justify-between gap-2">
+                          <Link href={`/members/${id}`} className="truncate hover:underline">
                             {memberMap.get(id)!.name}
                           </Link>
-                          <Badge tone="red">{n}×</Badge>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            {s.absent > s.absentNotice && <span className="text-xs text-slate-500">{s.absent - s.absentNotice} without notice</span>}
+                            <Badge tone="red">{s.absent}×</Badge>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {manyLates.length > 0 && (
+                  <div>
+                    <div className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">Late {flag_lates}+ times · last 30 days</div>
+                    <ul className="space-y-1">
+                      {manyLates.slice(0, 8).map(([id, s]) => (
+                        <li key={id} className="flex justify-between gap-2">
+                          <Link href={`/members/${id}`} className="truncate hover:underline">
+                            {memberMap.get(id)!.name}
+                          </Link>
+                          <Badge tone="yellow">{s.late}×</Badge>
                         </li>
                       ))}
                     </ul>

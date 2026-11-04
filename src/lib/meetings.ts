@@ -14,6 +14,7 @@ export type Meeting = {
   notes: string | null;
   schedule_id: number | null;
   missing_alert_at: string | null;
+  slack_sent_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";
@@ -36,7 +37,15 @@ export const APPLIES_LABEL: Record<SlotApplies, string> = {
 };
 
 export type RsvpResponse = "yes" | "late" | "no";
-export type Rsvp = { meeting_id: number; user_id: number; response: RsvpResponse; note: string | null; responded_at: string };
+export type Rsvp = {
+  meeting_id: number;
+  user_id: number;
+  response: RsvpResponse;
+  note: string | null;
+  /** For "late": the upper end of the expected delay in minutes (see late-by.ts). */
+  late_by_min: number | null;
+  responded_at: string;
+};
 
 export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -93,14 +102,16 @@ export async function rsvpsFor(meetingIds: number[]) {
   return all<Rsvp>(`SELECT * FROM rsvps WHERE meeting_id IN (${meetingIds.map(() => "?").join(",")})`, ...meetingIds);
 }
 
-export async function setRsvp(meetingId: number, userId: number, response: RsvpResponse, note: string | null) {
+export async function setRsvp(meetingId: number, userId: number, response: RsvpResponse, note: string | null, lateByMin: number | null) {
   await run(
-    `INSERT INTO rsvps (meeting_id, user_id, response, note, responded_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(meeting_id, user_id) DO UPDATE SET response = excluded.response, note = excluded.note, responded_at = excluded.responded_at`,
+    `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(meeting_id, user_id) DO UPDATE SET response = excluded.response, note = excluded.note,
+       late_by_min = excluded.late_by_min, responded_at = excluded.responded_at`,
     meetingId,
     userId,
     response,
     note,
+    lateByMin,
     new Date().toISOString(),
   );
 }

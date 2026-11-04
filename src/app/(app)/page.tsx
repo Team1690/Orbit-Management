@@ -175,6 +175,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             when={`${relativeDay(m.date)} · ${fmtTime(start)}–${fmtTime(end)}`}
             current={r?.response ?? null}
             currentNote={r?.note ?? null}
+            currentLateBy={r?.late_by_min ?? null}
           />
         );
       })}
@@ -208,7 +209,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                       {!m.mandatory && " · optional"}
                     </div>
                   </div>
-                  {m.rsvp && !mentor ? <RsvpBadge response={upcomingRsvps.get(m.id)?.response} /> : null}
+                  {m.rsvp && !mentor ? (
+                    <RsvpBadge response={upcomingRsvps.get(m.id)?.response} lateByMin={upcomingRsvps.get(m.id)?.late_by_min} />
+                  ) : null}
                 </li>
               );
             })}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AttendanceEntry } from "@/lib/attendance";
+import { lateByLabel } from "@/lib/late-by";
 
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
@@ -99,9 +100,9 @@ export function AttendanceBadge({ entry }: { entry: Pick<AttendanceEntry, "statu
   }
 }
 
-export function RsvpBadge({ response }: { response: "yes" | "late" | "no" | undefined | null }) {
+export function RsvpBadge({ response, lateByMin }: { response: "yes" | "late" | "no" | undefined | null; lateByMin?: number | null }) {
   if (response === "yes") return <Badge tone="green">Coming</Badge>;
-  if (response === "late") return <Badge tone="yellow">Coming late</Badge>;
+  if (response === "late") return <Badge tone="yellow">{lateByMin ? `Late · ${lateByLabel(lateByMin)}` : "Coming late"}</Badge>;
   if (response === "no") return <Badge tone="red">Can&apos;t come</Badge>;
   return <Badge>No answer</Badge>;
 }

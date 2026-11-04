@@ -177,6 +177,14 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL DEFAULT ${NOW}
   );
   `,
+
+  // 2: how late members expect to be, and the pre-meeting Slack summary.
+  `
+  -- The upper end of the range in minutes, e.g. 20 for "10–20 min" (see late-by.ts).
+  ALTER TABLE rsvps ADD COLUMN late_by_min INTEGER;
+  -- When the summary of who can't come or will be late was posted to Slack (once per meeting).
+  ALTER TABLE meetings ADD COLUMN slack_sent_at TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

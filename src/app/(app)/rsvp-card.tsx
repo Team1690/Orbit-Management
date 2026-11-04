@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { respondRsvp } from "@/actions/rsvp";
 import { CheckIcon, ClockIcon, XIcon } from "@/components/icons";
+import { LATE_BY_OPTIONS, lateByLabel } from "@/lib/late-by";
 
 type Response = "yes" | "late" | "no";
 
@@ -18,12 +19,14 @@ export function RsvpCard({
   when,
   current,
   currentNote,
+  currentLateBy,
 }: {
   meetingId: number;
   title: string;
   when: string;
   current: Response | null;
   currentNote: string | null;
+  currentLateBy: number | null;
 }) {
   const [choice, setChoice] = useState<Response | null>(null);
   const [state, action, pending] = useActionState(async (prev: Awaited<ReturnType<typeof respondRsvp>>, fd: FormData) => {
@@ -74,13 +77,32 @@ export function RsvpCard({
         {choice && choice !== "yes" && (
           <div className="mt-3 space-y-2">
             <input type="hidden" name="response" value={choice} />
+            {choice === "late" && (
+              <select
+                name="late_by"
+                required
+                autoFocus
+                defaultValue={current === "late" && currentLateBy ? String(currentLateBy) : ""}
+                className="input"
+                aria-label="How late will you be?"
+              >
+                <option value="" disabled>
+                  How late will you be?
+                </option>
+                {LATE_BY_OPTIONS.map((min) => (
+                  <option key={min} value={min}>
+                    {lateByLabel(min)}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
               name="note"
-              required
-              autoFocus
+              required={choice === "no"}
+              autoFocus={choice === "no"}
               defaultValue={current === choice ? (currentNote ?? "") : ""}
               maxLength={300}
-              placeholder={choice === "late" ? "When will you arrive? e.g. ~17:30" : "Reason, e.g. exam tomorrow"}
+              placeholder={choice === "late" ? "Anything to add? (optional)" : "Reason, e.g. exam tomorrow"}
               className="input"
             />
             <div className="flex gap-2">
@@ -92,6 +114,9 @@ export function RsvpCard({
               </button>
             </div>
           </div>
+        )}
+        {!choice && current === "late" && currentLateBy && (
+          <p className="mt-2 text-xs text-slate-500">You&apos;ll be late: {lateByLabel(currentLateBy)}</p>
         )}
         {!choice && current && current !== "yes" && currentNote && (
           <p className="mt-2 text-xs text-slate-500">Your note: {currentNote}</p>

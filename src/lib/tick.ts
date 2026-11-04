@@ -2,6 +2,7 @@ import { checkMissingAlerts } from "./alerts";
 import { all, nowIso, onServerlessHost, run } from "./db";
 import { ensureScheduledMeetings, meetingWindow, meetingsOn } from "./meetings";
 import { getSettings } from "./settings";
+import { sendMeetingSummaries } from "./slack";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
 import { type Visit } from "./visits";
 
@@ -39,6 +40,7 @@ export async function runTick(force = false) {
   lastTick = now;
   await ensureScheduledMeetings(new Date(now));
   await checkMissingAlerts(new Date(now));
+  await sendMeetingSummaries(new Date(now));
   await autoCheckout(new Date(now));
   await run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
 }
