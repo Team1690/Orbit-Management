@@ -17,7 +17,7 @@ It is an installable web app (PWA): members add it to their home screen on iPhon
 | **Member profiles** | Contact and parent details, main subteam (CAD, Mechanical, Robot software or Applications), any extra teams (Strategy, Electronics, Drive team, Media, Community outreach), the two school subjects they chose, grade, shirt size, medical notes, hours by season, attendance history, visit log (editable), and **captain-only notes**. **Members → Export CSV** downloads a contact list (name, phone, grade, school subjects, parent name and phone, shirt size), filtered by any mix of grades, subteams and shirt sizes. |
 | **Captain dashboard** | Who's at school now, the next weekly meeting and the next one-off meeting in the coming week (with live arrivals once they start), who hasn't answered the RSVP (with a "copy reminder" button for WhatsApp), members who need attention, and an hours leaderboard. |
 
-Roles: **captain** (everything), **member** (own home screen, scanning, RSVPs, own profile, Mentors page) and **mentor** (one-tap check-in, own weekly schedule, Mentors page). A **lead mentor** is a mentor who, like captains, sees every upcoming meeting on their home screen, not only the ones they are expected at. Members and mentors never see notes, other members' data or the QR code page.
+Roles: **captain** (everything), **member** (own home screen, scanning, RSVPs, own profile, Mentors page) and **mentor** (one-tap check-in, own weekly schedule, Mentors page). A **subteam lead** is a member who also gets a **Subteam** tab: a read-only, phone-friendly view of their main subteam with who is coming to the next meeting, who is flagged (by the captains' thresholds in Settings) and each member's attendance history. It shows no RSVP reasons or contact details. A **lead mentor** is a mentor who, like captains, sees every upcoming meeting on their home screen, not only the ones they are expected at. Members and mentors never see notes, other members' data or the QR code page.
 
 ## Running it
 
@@ -37,7 +37,7 @@ npm run seed:demo
 npm run dev:demo
 ```
 
-Open http://localhost:3000 and log in as `captain@demo.orbit`, `member@demo.orbit` or `mentor@demo.orbit`, password `demo1234`. The demo uses its own local database (`data/demo-pglite`), even when `DATABASE_URL` is set.
+Open http://localhost:3000 and log in as `captain@demo.orbit`, `member@demo.orbit`, `lead@demo.orbit` (a subteam lead) or `mentor@demo.orbit`, password `demo1234`. The demo uses its own local database (`data/demo-pglite`), even when `DATABASE_URL` is set.
 
 **Real use:**
 

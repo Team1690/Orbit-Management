@@ -5,7 +5,8 @@ import { nowIso, one, run } from "./db";
 import { randomToken, sha256 } from "./password";
 
 export type Role = "member" | "captain" | "mentor";
-export type SessionUser = { id: number; name: string; email: string; role: Role };
+/** subteam_lead: a member who can view their own subteam's attendance (see /subteam). */
+export type SessionUser = { id: number; name: string; email: string; role: Role; subteam_lead: number };
 
 const SESSION_COOKIE = "orbit_session";
 const SESSION_DAYS = 180;
@@ -19,7 +20,7 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const user = await one<SessionUser>(
-    `SELECT u.id, u.name, u.email, u.role
+    `SELECT u.id, u.name, u.email, u.role, u.subteam_lead
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1`,
     sha256(token),

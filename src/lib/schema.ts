@@ -213,6 +213,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE meetings ADD COLUMN reminder_sent_at TEXT;
   ALTER TABLE schedule ADD COLUMN reminder_hours INTEGER;
   `,
+
+  // 7: a subteam lead is a member who can view their own subteam's attendance (read-only).
+  `
+  ALTER TABLE users ADD COLUMN subteam_lead INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

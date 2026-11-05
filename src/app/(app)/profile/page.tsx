@@ -6,7 +6,7 @@ import { Avatar, Badge, Card, Field } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { SubjectInputs } from "@/components/member-fields";
 import { PushToggle } from "@/components/push-toggle";
-import { SHIRT_SIZES, getMember, roleLabel } from "@/lib/members";
+import { SHIRT_SIZES, getMember, hasRoleBadge, roleLabel } from "@/lib/members";
 import { vapidPublicKey } from "@/lib/push";
 
 export const metadata: Metadata = { title: "My profile" };
@@ -22,7 +22,7 @@ export default async function ProfilePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{m.name}</h1>
           <div className="mt-1 flex flex-wrap gap-1.5 text-sm text-slate-500">
-            {m.role !== "member" && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
+            {hasRoleBadge(m) && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
             {m.subteam && <Badge>{m.subteam}</Badge>}
             {m.teams.map((t) => (
               <Badge key={t} tone="gray">

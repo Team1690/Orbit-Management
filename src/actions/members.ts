@@ -18,7 +18,7 @@ async function emailTaken(email: string, exceptId?: number) {
   return !!(await one("SELECT 1 FROM users WHERE lower(email) = ? AND id <> ?", email, exceptId ?? 0));
 }
 
-/** The Role dropdown: "lead_mentor" is a mentor with the lead flag. */
+/** The Role dropdown: "lead_mentor" is a mentor with the lead flag, "subteam_lead" a member with theirs. */
 function readRole(fd: FormData): Role {
   const role = str(fd, "role");
   return role === "captain" || role === "mentor" ? role : role === "lead_mentor" ? "mentor" : "member";
@@ -27,6 +27,12 @@ function readRole(fd: FormData): Role {
 function readLeadMentor(fd: FormData) {
   return str(fd, "role") === "lead_mentor";
 }
+
+function readSubteamLead(fd: FormData) {
+  return str(fd, "role") === "subteam_lead";
+}
+
+const LEAD_NEEDS_SUBTEAM = "A subteam lead needs a subteam: pick one.";
 
 export async function createMember(_: FormState, fd: FormData): Promise<FormState> {
   await requireCaptain();
@@ -37,14 +43,16 @@ export async function createMember(_: FormState, fd: FormData): Promise<FormStat
   if (await emailTaken(email)) return { error: "Someone with that email already exists." };
   const subteam = normalizeSubteam(optStr(fd, "subteam"));
   if (subteam === undefined) return { error: "Pick a subteam from the list." };
+  if (readSubteamLead(fd) && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
   const role = readRole(fd);
   const id = await tx(async () => {
     const { id } = await run(
-      "INSERT INTO users (name, email, role, lead_mentor, subteam, grade, phone, joined_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      "INSERT INTO users (name, email, role, lead_mentor, subteam_lead, subteam, grade, phone, joined_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
       name,
       email,
       role,
       readLeadMentor(fd),
+      readSubteamLead(fd),
       subteam,
       role === "mentor" ? null : optStr(fd, "grade"),
       optStr(fd, "phone"),
@@ -118,16 +126,18 @@ export async function updateMember(id: number, _: FormState, fd: FormData): Prom
   if (birthday && !DATE_RE.test(birthday)) return { error: "Birthday must be a date." };
   const subteam = normalizeSubteam(optStr(fd, "subteam"));
   if (subteam === undefined) return { error: "Pick a subteam from the list." };
+  if (readSubteamLead(fd) && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
 
   await tx(async () => {
     await run(
-      `UPDATE users SET name = ?, email = ?, role = ?, lead_mentor = ?, active = ?, phone = ?, grade = ?, subteam = ?, subject_1 = ?, subject_2 = ?,
+      `UPDATE users SET name = ?, email = ?, role = ?, lead_mentor = ?, subteam_lead = ?, active = ?, phone = ?, grade = ?, subteam = ?, subject_1 = ?, subject_2 = ?,
          birthday = ?, joined_year = ?, shirt_size = ?, parent_name = ?, parent_phone = ?, medical_notes = ?
        WHERE id = ?`,
       name,
       email,
       role,
       readLeadMentor(fd),
+      readSubteamLead(fd),
       active,
       optStr(fd, "phone"),
       optStr(fd, "grade"),

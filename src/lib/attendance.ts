@@ -143,13 +143,25 @@ const emptySummary = (): AttendanceSummary => ({
   rate: null,
 });
 
+/** Whether a meeting counts toward attendance totals: finished, mandatory and not cancelled. */
+export function countsTowardTotals(m: Meeting, now = Date.now()) {
+  return !!m.mandatory && !m.cancelled && meetingWindow(m).end.getTime() <= now;
+}
+
 /** Per-member totals over finished, mandatory, non-cancelled meetings. */
 export async function summarize(meetings: Meeting[], memberIds?: number[]) {
   const now = Date.now();
-  const finished = meetings.filter((m) => m.mandatory && !m.cancelled && meetingWindow(m).end.getTime() <= now);
-  const attendance = await computeAttendance(finished, memberIds);
+  const attendance = await computeAttendance(
+    meetings.filter((m) => countsTowardTotals(m, now)),
+    memberIds,
+  );
+  return totalsFrom(attendance.values());
+}
+
+/** Per-member totals from computeAttendance rows; pass only meetings that count (countsTowardTotals). */
+export function totalsFrom(rows: Iterable<Map<number, AttendanceEntry>>) {
   const totals = new Map<number, AttendanceSummary>();
-  for (const row of attendance.values()) {
+  for (const row of rows) {
     for (const [userId, e] of row) {
       const s = totals.get(userId) ?? emptySummary();
       s.meetings += 1;

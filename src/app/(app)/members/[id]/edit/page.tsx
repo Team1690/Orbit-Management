@@ -46,6 +46,7 @@ export default async function EditMemberPage({ params }: PageProps<"/members/[id
           <Field label="Role">
             <select name="role" defaultValue={roleChoice(m)} className="input">
               <option value="member">Member</option>
+              <option value="subteam_lead">Subteam lead (sees their subteam&apos;s attendance)</option>
               <option value="captain">Captain</option>
               <option value="mentor">Mentor</option>
               <option value="lead_mentor">Lead mentor (sees every upcoming meeting)</option>

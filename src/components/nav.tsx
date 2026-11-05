@@ -28,6 +28,9 @@ const MEMBER_LINKS: NavLink[] = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
+/** Subteam leads also get their subteam's page, after Scan. */
+const SUBTEAM_LEAD_LINKS: NavLink[] = [...MEMBER_LINKS.slice(0, 2), { href: "/subteam", label: "Subteam", icon: UsersIcon }, ...MEMBER_LINKS.slice(2)];
+
 const MENTOR_LINKS: NavLink[] = [{ href: "/", label: "Home", icon: HomeIcon }, MENTORS_LINK, { href: "/profile", label: "Profile", icon: UserIcon }];
 
 const CAPTAIN_LINKS: NavLink[] = [
@@ -45,17 +48,19 @@ function isActive(pathname: string, href: string) {
 export function Nav({
   name,
   role,
+  subteamLead,
   teamName,
   logout,
 }: {
   name: string;
   role: "member" | "captain" | "mentor";
+  subteamLead: boolean;
   teamName: string;
   logout: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const captain = role === "captain";
-  const tabs = captain ? CAPTAIN_LINKS : role === "mentor" ? MENTOR_LINKS : MEMBER_LINKS;
+  const tabs = captain ? CAPTAIN_LINKS : role === "mentor" ? MENTOR_LINKS : subteamLead ? SUBTEAM_LEAD_LINKS : MEMBER_LINKS;
   const desktop = captain ? [...CAPTAIN_LINKS, { href: "/settings", label: "Settings", icon: SlidersIcon }] : tabs;
 
   return (

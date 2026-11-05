@@ -119,6 +119,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                             <span className="flex gap-1">
                               {m.role === "captain" && <Badge tone="blue">Captain</Badge>}
                               {m.role === "mentor" && <Badge tone="purple">{roleLabel(m)}</Badge>}
+                              {m.role === "member" && !!m.subteam_lead && <Badge tone="blue">Subteam lead</Badge>}
                               {!m.has_password && <Badge tone="yellow">No password</Badge>}
                               {!m.active && <Badge>Inactive</Badge>}
                             </span>

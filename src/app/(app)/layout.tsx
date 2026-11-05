@@ -10,7 +10,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
   return (
     <div className="min-h-dvh pb-24 md:pb-0">
-      <Nav name={user.name} role={user.role} teamName={(await getSettings()).team_name} logout={logout} />
+      <Nav
+        name={user.name}
+        role={user.role}
+        subteamLead={user.role === "member" && !!user.subteam_lead}
+        teamName={(await getSettings()).team_name}
+        logout={logout}
+      />
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">{children}</main>
     </div>
   );

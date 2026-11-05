@@ -1,6 +1,6 @@
 // Builds the demo database (data/demo-pglite) with fake members, five weeks of meetings, check-ins and RSVPs.
 // Run: npm run seed:demo   (then npm run dev:demo)
-// Log in as captain@demo.orbit, member@demo.orbit or mentor@demo.orbit, password "demo1234".
+// Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit (a subteam lead) or mentor@demo.orbit, password "demo1234".
 // Always writes the local demo database, never the one in DATABASE_URL.
 import fs from "node:fs";
 import path from "node:path";
@@ -68,7 +68,10 @@ await db.transaction(async (q) => {
     ["Gal Harel", "captain@demo.orbit", "captain"],
     ["Shira Katz", "shira.katz@demo.orbit", "captain"],
     ["Itai Peretz", "member@demo.orbit", "member"],
+    ["Noa Levi", "lead@demo.orbit", "member"],
   ];
+  /** Demo logins: always have a password and steady attendance. */
+  const login = (email: string) => email === "member@demo.orbit" || email === "lead@demo.orbit";
   const usedNames = new Set(people.map((p) => p[0]));
   while (people.length < 28) {
     const name = `${pick(FIRST)} ${pick(LAST)}`;
@@ -85,11 +88,11 @@ await db.transaction(async (q) => {
       name,
       email,
       // A few members haven't set a password yet.
-      email.endsWith("@demo.orbit") && rand() < 0.1 && role === "member" && email !== "member@demo.orbit" ? null : pw,
+      email.endsWith("@demo.orbit") && rand() < 0.1 && role === "member" && !login(email) ? null : pw,
       role,
       `05${Math.floor(rand() * 10)}-${String(Math.floor(rand() * 9_000_000) + 1_000_000)}`,
       grade,
-      role === "captain" ? "Mechanical" : pick(SUBTEAMS),
+      role === "captain" || email === "lead@demo.orbit" ? "Mechanical" : pick(SUBTEAMS),
       rand() < 0.9 ? subject1 : null,
       rand() < 0.9 ? subject2 : null,
       `${2026 - 5 - Number(grade)}-${String(1 + Math.floor(rand() * 12)).padStart(2, "0")}-${String(1 + Math.floor(rand() * 28)).padStart(2, "0")}`,
@@ -106,10 +109,12 @@ await db.transaction(async (q) => {
     if (rand() < 0.2) extras.add(pick(EXTRA_TEAMS));
     for (const team of extras) await insertTeam(id, team);
     // Reliability: most members come most of the time; a couple are struggling.
-    const reliability = email === "member@demo.orbit" ? 0.9 : rand() < 0.15 ? 0.45 + rand() * 0.2 : 0.75 + rand() * 0.23;
+    const reliability = login(email) ? 0.9 : rand() < 0.15 ? 0.45 + rand() * 0.2 : 0.75 + rand() * 0.23;
     members.push({ id, reliability, punctual: 0.75 + rand() * 0.2 });
   }
   memberCount = members.length;
+  // Noa leads Mechanical: the Subteam tab shows that subteam's attendance, read-only.
+  await q.query("UPDATE users SET subteam_lead = 1 WHERE email = 'lead@demo.orbit'");
 
   // --- Mentors -----------------------------------------------------------------------------
   const insertMentor = insert(
@@ -257,4 +262,4 @@ await db.transaction(async (q) => {
 
 await db.close();
 console.log(`Demo database written to ${dir} with ${memberCount} members.`);
-console.log('Log in as captain@demo.orbit, member@demo.orbit or mentor@demo.orbit with password "demo1234".');
+console.log('Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit or mentor@demo.orbit with password "demo1234".');
