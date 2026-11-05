@@ -4,6 +4,7 @@ import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
+import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
 import { ReminderPrompt } from "@/components/push-toggle";
 import { AttendanceBadge, Avatar, Badge, Banner, Card, Empty, RsvpBadge, Stat } from "@/components/ui";
 import { VisitRow } from "@/components/visit-row";
@@ -153,6 +154,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           )}
         </Card>
       )}
+
+      {/* Mentors see who on their subteam is coming to the next meeting (no full dashboard). */}
+      {mentor && me?.subteam && <SubteamNextMeeting subteam={me.subteam} title={`${me.subteam} · next meeting`} />}
 
       {!mentor && mentorsToday.length > 0 && (
         <Card

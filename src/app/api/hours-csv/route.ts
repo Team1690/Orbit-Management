@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUser, isStaff } from "@/lib/auth";
 import { csvCell, csvResponse } from "@/lib/csv";
 import { listStudents } from "@/lib/members";
 import { periodFromSearch } from "@/lib/periods";
@@ -7,7 +7,7 @@ import { hoursByUser } from "@/lib/visits";
 
 export async function GET(request: NextRequest) {
   const user = await getUser();
-  if (user?.role !== "captain") return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!isStaff(user)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const sp = request.nextUrl.searchParams;
   const period = await periodFromSearch({ season: sp.get("season") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined });

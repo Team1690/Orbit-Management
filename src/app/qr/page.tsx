@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
-import { getUser } from "@/lib/auth";
+import { getUser, isStaff } from "@/lib/auth";
 import { currentOrNextMeeting, meetingWindow } from "@/lib/meetings";
 import { fmtTime, relativeDay } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
@@ -16,7 +16,7 @@ export default async function QrPage({ searchParams }: PageProps<"/qr">) {
   const key = typeof k === "string" ? k : undefined;
   const settings = await getSettings();
   const user = await getUser();
-  if (user?.role !== "captain" && key !== settings.display_key) {
+  if (!isStaff(user) && key !== settings.display_key) {
     return (
       <AuthShell title="Captains only" subtitle="Log in as a captain to show the check-in code, or use the display link from Settings.">
         <Link href="/login" className="btn btn-primary w-full">
@@ -33,7 +33,7 @@ export default async function QrPage({ searchParams }: PageProps<"/qr">) {
   }
   return (
     <QrDisplay
-      displayKey={user?.role === "captain" ? undefined : key}
+      displayKey={isStaff(user) ? undefined : key}
       teamName={settings.team_name}
       meetingLabel={meetingLabel}
       rotateMin={settings.qr_rotate_min}

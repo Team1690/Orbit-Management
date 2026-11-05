@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { changePassword } from "@/actions/auth";
 import { updateMyProfile } from "@/actions/members";
+import { setStaffAlerts } from "@/actions/push";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Field } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -8,12 +9,14 @@ import { SubjectInputs } from "@/components/member-fields";
 import { PushToggle } from "@/components/push-toggle";
 import { SHIRT_SIZES, getMember, hasRoleBadge, roleLabel } from "@/lib/members";
 import { vapidPublicKey } from "@/lib/push";
+import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "My profile" };
 
 export default async function ProfilePage() {
   const me = await requireUser();
   const m = (await getMember(me.id))!;
+  const { missing_alert_min } = await getSettings();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -75,6 +78,26 @@ export default async function ProfilePage() {
             RSVP reminders and meeting reminders on this device{m.role === "captain" ? ", plus captain alerts" : ""}.
           </p>
           <PushToggle publicKey={await vapidPublicKey()} what="reminders" />
+        </Card>
+      )}
+
+      {m.role === "mentor" && !!m.lead_mentor && (
+        <Card title="Notifications">
+          <p className="mb-3 text-sm text-slate-600">Meeting reminders on this device, plus captain alerts if you keep them on below.</p>
+          <PushToggle publicKey={await vapidPublicKey()} what="alerts" />
+          <form action={setStaffAlerts} className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <input type="hidden" name="on" value={m.staff_alerts ? "0" : "1"} />
+            <div className="min-w-0 flex-1 text-sm">
+              <div className="font-medium text-slate-900">Captain alerts: {m.staff_alerts ? "on" : "off"}</div>
+              <div className="text-slate-500">
+                Who hasn&apos;t checked in {missing_alert_min} minutes after a meeting starts, and who didn&apos;t answer when RSVPs close. Meeting
+                reminders keep coming either way.
+              </div>
+            </div>
+            <SubmitButton className={`btn btn-sm ${m.staff_alerts ? "btn-secondary" : "btn-primary"}`} pendingText="…">
+              {m.staff_alerts ? "Turn off" : "Turn on"}
+            </SubmitButton>
+          </form>
         </Card>
       )}
 

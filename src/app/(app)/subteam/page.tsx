@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AttendanceBadge, Avatar, Badge, Card, Empty, PageHeader, RsvpBadge } from "@/components/ui";
+import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
+import { AttendanceBadge, Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { computeAttendance, summaryFor, totalsFrom, type AttendanceEntry } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth";
-import { fmtDate, fmtTime, pct, relativeDay } from "@/lib/format";
+import { fmtDate, pct } from "@/lib/format";
 import { meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
 import { getMember, listStudents } from "@/lib/members";
 import { currentPeriod, today } from "@/lib/periods";
@@ -17,11 +18,6 @@ export const metadata: Metadata = { title: "My subteam" };
 // and each member's attendance. No reasons or contact details, and nothing can be changed here.
 
 const HISTORY = 8;
-
-/** RSVP groups in the order a lead acts on them: who hasn't answered first. */
-const RSVP_ORDER = { none: 0, no: 1, late: 2, yes: 3 } as const;
-/** During the meeting: who isn't here yet first. */
-const ARRIVAL_ORDER: Record<AttendanceEntry["status"], number> = { missing: 0, absent: 1, late: 2, present: 3, upcoming: 4, not_required: 5 };
 
 function rateTone(rate: number | null) {
   return rate === null ? "text-slate-400" : rate >= 0.85 ? "text-emerald-600" : rate >= 0.7 ? "text-amber-600" : "text-rose-600";
@@ -49,7 +45,7 @@ export default async function SubteamPage() {
   const team = students.filter((s) => s.subteam === me.subteam);
   const ids = team.map((s) => s.id);
   const from = period.startDate < monthStart ? period.startDate : monthStart;
-  const [past, soon] = await Promise.all([meetingsBetween(from, t, false), meetingsBetween(t, addDays(t, 14), false)]);
+  const past = await meetingsBetween(from, t, false);
 
   // One attendance lookup for everything finished: the season's totals, the last 30 days' flags and the history.
   const finished = past.filter((m) => meetingWindow(m).end <= now);
@@ -68,23 +64,6 @@ export default async function SubteamPage() {
       .reverse()
       .slice(0, HISTORY);
 
-  // The next meeting with RSVPs that anyone on the subteam is expected at (or the one happening now).
-  const upcoming = soon.filter((m) => m.rsvp && meetingWindow(m).end > now);
-  const upcomingAttendance = await computeAttendance(upcoming, ids);
-  const next = upcoming.find((m) => (upcomingAttendance.get(m.id)?.size ?? 0) > 0);
-  const nextWindow = next ? meetingWindow(next) : null;
-  const started = !!nextWindow && now >= nextWindow.start;
-  // Before the start, who hasn't answered comes first; once it has started, who isn't here yet.
-  const nextRows = next
-    ? [...upcomingAttendance.get(next.id)!].sort(
-        ([a, ea], [b, eb]) =>
-          (started ? ARRIVAL_ORDER[ea.status] - ARRIVAL_ORDER[eb.status] : 0) ||
-          RSVP_ORDER[ea.rsvp?.response ?? "none"] - RSVP_ORDER[eb.rsvp?.response ?? "none"] ||
-          team.find((s) => s.id === a)!.name.localeCompare(team.find((s) => s.id === b)!.name),
-      )
-    : [];
-  const count = (response: "yes" | "late" | "no" | null) => nextRows.filter(([, e]) => (e.rsvp?.response ?? null) === response).length;
-
   const { flag_absences, flag_lates } = settings;
   const flagged = team
     .map((s) => {
@@ -95,51 +74,12 @@ export default async function SubteamPage() {
     .sort((a, b) => b.absent - a.absent || b.late - a.late);
   const flags = new Map(flagged.map((f) => [f.s.id, f]));
   const thresholds = [flag_absences > 0 && `${flag_absences}+ absences`, flag_lates > 0 && `${flag_lates}+ late arrivals`].filter(Boolean).join(" or ");
-  const name = (id: number) => team.find((s) => s.id === id)!.name;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title={me.subteam} subtitle={`${team.length} members · view only`} />
 
-      <Card title="Next meeting">
-        {!next || !nextWindow ? (
-          <Empty>No meeting with RSVPs in the next two weeks.</Empty>
-        ) : (
-          <>
-            <div className="mb-3 flex flex-wrap items-center gap-1.5 text-sm">
-              <span className="font-semibold text-slate-900">{next.title}</span>
-              <span className="text-slate-500">
-                · {relativeDay(next.date)} {fmtTime(nextWindow.start)}–{fmtTime(nextWindow.end)}
-              </span>
-              {started && <Badge tone="green">Happening now</Badge>}
-            </div>
-            <div className="mb-3 grid grid-cols-4 gap-2 text-center">
-              {[
-                { label: "Coming", n: count("yes"), tone: "text-emerald-600" },
-                { label: "Late", n: count("late"), tone: "text-amber-600" },
-                { label: "Can't come", n: count("no"), tone: "text-rose-600" },
-                { label: "No answer", n: count(null), tone: "text-slate-700" },
-              ].map((c) => (
-                <div key={c.label} className="rounded-xl bg-slate-50 py-2">
-                  <div className={`text-xl font-bold tabular-nums ${c.tone}`}>{c.n}</div>
-                  <div className="text-[11px] font-medium text-slate-500">{c.label}</div>
-                </div>
-              ))}
-            </div>
-            <ul className="divide-y divide-slate-100">
-              {nextRows.map(([id, e]) => (
-                <li key={id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="truncate">{name(id)}</span>
-                  <span className="flex shrink-0 items-center gap-1">
-                    {started && <AttendanceBadge entry={e} />}
-                    <RsvpBadge response={e.rsvp?.response} lateByMin={e.rsvp?.late_by_min} />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </Card>
+      <SubteamNextMeeting subteam={me.subteam} />
 
       {flagged.length > 0 && (
         <Card title="Needs attention">

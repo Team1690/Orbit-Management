@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DownloadIcon, PlusIcon } from "@/components/icons";
 import { Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { summarize, summaryFor } from "@/lib/attendance";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { fmtHours, pct } from "@/lib/format";
 import { meetingsBetween } from "@/lib/meetings";
 import { EXTRA_TEAMS, SUBTEAMS, listMembers, roleLabel } from "@/lib/members";
@@ -22,7 +22,7 @@ const FILTERS = [
 ];
 
 export default async function MembersPage({ searchParams }: PageProps<"/members">) {
-  await requireCaptain();
+  await requireStaff();
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
   const subteam = typeof sp.subteam === "string" ? sp.subteam : "";

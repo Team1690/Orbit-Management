@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DownloadIcon } from "@/components/icons";
 import { Avatar, Card, Empty, PageHeader } from "@/components/ui";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { fmtDuration, fmtHours } from "@/lib/format";
 import { listStudents } from "@/lib/members";
 import { listSeasons, periodFromSearch, today } from "@/lib/periods";
@@ -12,7 +12,7 @@ import { hoursByUser } from "@/lib/visits";
 export const metadata: Metadata = { title: "Hours" };
 
 export default async function HoursPage({ searchParams }: PageProps<"/hours">) {
-  await requireCaptain();
+  await requireStaff();
   const sp = await searchParams;
   const pick = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   const period = await periodFromSearch({ season: pick("season"), from: pick("from"), to: pick("to") });

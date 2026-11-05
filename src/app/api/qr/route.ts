@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { NextResponse, type NextRequest } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUser, isStaff } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { appOrigin, currentQrCode } from "@/lib/qr";
 import { getSettings } from "@/lib/settings";
@@ -10,7 +10,7 @@ import { getSettings } from "@/lib/settings";
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("k");
   const user = await getUser();
-  if (user?.role !== "captain" && (!key || key !== (await getSettings()).display_key)) {
+  if (!isStaff(user) && (!key || key !== (await getSettings()).display_key)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { code, msUntilNext } = await currentQrCode();

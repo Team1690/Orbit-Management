@@ -6,7 +6,7 @@ import { captainCheckIn, captainCheckOut } from "@/actions/presence";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/client";
 import { AttendanceBadge, Avatar, Badge, Card, Empty, Field, PageHeader, Stat } from "@/components/ui";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { fmtDate, fmtDateTime, fmtDay, fmtDuration, fmtHours, fmtTime, pct } from "@/lib/format";
 import { rsvpDetail } from "@/lib/late-by";
 import { WEEKDAY_NAMES, meetingWindow, meetingsBetween } from "@/lib/meetings";
@@ -33,7 +33,9 @@ function Detail({ label, value }: { label: string; value: string | number | null
 }
 
 export default async function MemberPage({ params }: PageProps<"/members/[id]">) {
-  await requireCaptain();
+  const me = await requireStaff();
+  /** Meeting sheets and Settings are captain-only, so lead mentors get plain text there. */
+  const captain = me.role === "captain";
   const id = Number((await params).id);
   const m = await getMember(id);
   if (!m) notFound();
@@ -178,9 +180,15 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                   return (
                     <li key={mt.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
                       <div className="min-w-0 flex-1">
-                        <Link href={`/meetings/${mt.id}`} className="text-sm font-medium hover:underline">
-                          {mt.title} · {fmtDate(mt.date)}
-                        </Link>
+                        {captain ? (
+                          <Link href={`/meetings/${mt.id}`} className="text-sm font-medium hover:underline">
+                            {mt.title} · {fmtDate(mt.date)}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-medium">
+                            {mt.title} · {fmtDate(mt.date)}
+                          </span>
+                        )}
                         <div className="truncate text-xs text-slate-500">
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
                           {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
@@ -271,7 +279,12 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
           <Card title="Hours by season">
             {seasons.length === 0 ? (
               <p className="text-sm text-slate-400">
-                No seasons defined. <Link href="/settings" className="link">Add one</Link>.
+                No seasons defined.{" "}
+                {captain && (
+                  <Link href="/settings" className="link">
+                    Add one
+                  </Link>
+                )}
               </p>
             ) : (
               <ul className="space-y-2 text-sm">

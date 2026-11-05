@@ -14,6 +14,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         name={user.name}
         role={user.role}
         subteamLead={user.role === "member" && !!user.subteam_lead}
+        leadMentor={user.role === "mentor" && !!user.lead_mentor}
         teamName={(await getSettings()).team_name}
         logout={logout}
       />

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DownloadIcon } from "@/components/icons";
 import { CHIP_CLASS, Card, PageHeader } from "@/components/ui";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { EXTRA_TEAMS, GRADES, NOT_SET, SHIRT_SIZES, SUBTEAMS } from "@/lib/members";
 
 export const metadata: Metadata = { title: "Export members" };
@@ -27,7 +27,7 @@ function Choices({ legend, name, options }: { legend: string; name: string; opti
 const withNotSet = (values: string[]) => [...values.map((v) => ({ value: v, label: v })), { value: NOT_SET, label: "Not set" }];
 
 export default async function ExportMembersPage() {
-  await requireCaptain();
+  await requireStaff();
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader

@@ -1,6 +1,7 @@
 // Builds the demo database (data/demo-pglite) with fake members, five weeks of meetings, check-ins and RSVPs.
 // Run: npm run seed:demo   (then npm run dev:demo)
-// Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit (a subteam lead) or mentor@demo.orbit, password "demo1234".
+// Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit (a subteam lead), mentor@demo.orbit or
+// leadmentor@demo.orbit, password "demo1234".
 // Always writes the local demo database, never the one in DATABASE_URL.
 import fs from "node:fs";
 import path from "node:path";
@@ -124,11 +125,14 @@ await db.transaction(async (q) => {
   const mentorIds: number[] = [];
   for (const [name, email, subteam] of [
     ["Dr. Ronit Avidan", "mentor@demo.orbit", "Robot software"],
-    ["Yossi Ben-Ami", "yossi.mentor@demo.orbit", "Mechanical"],
+    ["Yossi Ben-Ami", "leadmentor@demo.orbit", "Mechanical"],
     ["Michal Oren", "michal.mentor@demo.orbit", "CAD"],
   ]) {
     mentorIds.push(await insertMentor(name, email, pw, subteam, `05${Math.floor(rand() * 10)}-${String(Math.floor(rand() * 9_000_000) + 1_000_000)}`, 2020, createdAt));
   }
+
+  // Yossi is a lead mentor: the captains' Dashboard, Members and Hours, without Settings or Meetings.
+  await q.query("UPDATE users SET lead_mentor = 1 WHERE email = 'leadmentor@demo.orbit'");
 
   // --- Schedule and past meetings ----------------------------------------------------------
   const insertRule = insert(q, "INSERT INTO schedule (weekday, start_time, end_time, title, applies, generated_until) VALUES ($1, $2, $3, $4, $5, $6)");
@@ -262,4 +266,4 @@ await db.transaction(async (q) => {
 
 await db.close();
 console.log(`Demo database written to ${dir} with ${memberCount} members.`);
-console.log('Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit or mentor@demo.orbit with password "demo1234".');
+console.log('Log in as captain@demo.orbit, member@demo.orbit, lead@demo.orbit, mentor@demo.orbit or leadmentor@demo.orbit with password "demo1234".');

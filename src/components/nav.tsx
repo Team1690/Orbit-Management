@@ -33,6 +33,15 @@ const SUBTEAM_LEAD_LINKS: NavLink[] = [...MEMBER_LINKS.slice(0, 2), { href: "/su
 
 const MENTOR_LINKS: NavLink[] = [{ href: "/", label: "Home", icon: HomeIcon }, MENTORS_LINK, { href: "/profile", label: "Profile", icon: UserIcon }];
 
+/** Lead mentors: the captains' pages but Meetings and Settings, plus Home for their one-tap check-in. */
+const LEAD_MENTOR_LINKS: NavLink[] = [
+  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/dashboard", label: "Dashboard", icon: GridIcon },
+  { href: "/members", label: "Members", icon: UsersIcon },
+  { href: "/hours", label: "Hours", icon: ClockIcon },
+  MENTORS_LINK,
+];
+
 const CAPTAIN_LINKS: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: GridIcon },
   { href: "/members", label: "Members", icon: UsersIcon },
@@ -49,19 +58,25 @@ export function Nav({
   name,
   role,
   subteamLead,
+  leadMentor,
   teamName,
   logout,
 }: {
   name: string;
   role: "member" | "captain" | "mentor";
   subteamLead: boolean;
+  leadMentor: boolean;
   teamName: string;
   logout: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const captain = role === "captain";
-  const tabs = captain ? CAPTAIN_LINKS : role === "mentor" ? MENTOR_LINKS : subteamLead ? SUBTEAM_LEAD_LINKS : MEMBER_LINKS;
-  const desktop = captain ? [...CAPTAIN_LINKS, { href: "/settings", label: "Settings", icon: SlidersIcon }] : tabs;
+  const tabs = captain ? CAPTAIN_LINKS : leadMentor ? LEAD_MENTOR_LINKS : role === "mentor" ? MENTOR_LINKS : subteamLead ? SUBTEAM_LEAD_LINKS : MEMBER_LINKS;
+  const desktop = captain
+    ? [...CAPTAIN_LINKS, { href: "/settings", label: "Settings", icon: SlidersIcon }]
+    : leadMentor
+      ? [...LEAD_MENTOR_LINKS, { href: "/profile", label: "Profile", icon: UserIcon }]
+      : tabs;
 
   return (
     <>
@@ -99,6 +114,11 @@ export function Nav({
                   <SlidersIcon />
                 </Link>
               </>
+            )}
+            {leadMentor && (
+              <Link href="/profile" className="btn btn-ghost btn-sm md:hidden" aria-label="Profile">
+                <UserIcon />
+              </Link>
             )}
             {role !== "mentor" && (captain || pathname !== "/scan") && (
               <Link href="/scan" className="btn btn-ghost btn-sm" aria-label="Scan check-in code">

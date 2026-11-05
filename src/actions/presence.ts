@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getUser, requireCaptain, requireUser } from "@/lib/auth";
+import { getUser, requireStaff, requireUser } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { fmtTime } from "@/lib/format";
 import { extractCode, verifyQrCode } from "@/lib/qr";
@@ -39,21 +39,21 @@ export async function checkOutSelf() {
 }
 
 export async function captainCheckIn(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   const userId = Number(fd.get("user_id"));
   if (userId) await checkIn(userId, "manual");
   revalidatePath("/", "layout");
 }
 
 export async function captainCheckOut(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   const userId = Number(fd.get("user_id"));
   if (userId) await checkOut(userId, "manual");
   revalidatePath("/", "layout");
 }
 
 export async function checkOutEveryone() {
-  await requireCaptain();
+  await requireStaff();
   for (const { user_id } of await all<{ user_id: number }>("SELECT user_id FROM visits WHERE check_out IS NULL")) {
     await checkOut(user_id, "manual");
   }

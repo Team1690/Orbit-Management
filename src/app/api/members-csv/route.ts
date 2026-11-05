@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUser, isStaff } from "@/lib/auth";
 import { csvCell, csvPhone, csvResponse } from "@/lib/csv";
 import { NOT_SET, listStudents } from "@/lib/members";
 import { today } from "@/lib/periods";
@@ -10,7 +10,7 @@ import { today } from "@/lib/periods";
  */
 export async function GET(request: NextRequest) {
   const user = await getUser();
-  if (user?.role !== "captain") return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!isStaff(user)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const sp = request.nextUrl.searchParams;
   const grades = sp.getAll("grade");

@@ -12,6 +12,8 @@ export type Member = {
   lead_mentor: number;
   /** For members: a subteam lead can view their own subteam's attendance (read-only). */
   subteam_lead: number;
+  /** For lead mentors: whether they get the captains' alerts (1, the default) or only meeting reminders. */
+  staff_alerts: number;
   phone: string | null;
   grade: string | null;
   subteam: string | null;
@@ -31,7 +33,7 @@ export type Member = {
   created_at: string;
 };
 
-const MEMBER_COLUMNS = `id, name, email, role, active, lead_mentor, subteam_lead, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
+const MEMBER_COLUMNS = `id, name, email, role, active, lead_mentor, subteam_lead, staff_alerts, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
   shirt_size, parent_name, parent_phone, medical_notes, (password_hash IS NOT NULL)::int AS has_password, invite_expires_at, created_at,
   (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
 

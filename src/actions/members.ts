@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireCaptain, requireUser, type Role } from "@/lib/auth";
+import { requireStaff, requireUser, type Role } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
 import { DATE_RE, EMAIL_RE, int, optStr, str, type FormState } from "@/lib/forms";
 import { SUBTEAMS, createInvite, normalizeSubteam, setTeams } from "@/lib/members";
@@ -18,24 +18,25 @@ async function emailTaken(email: string, exceptId?: number) {
   return !!(await one("SELECT 1 FROM users WHERE lower(email) = ? AND id <> ?", email, exceptId ?? 0));
 }
 
+type RoleFields = { role: Role; leadMentor: boolean; subteamLead: boolean };
+
 /** The Role dropdown: "lead_mentor" is a mentor with the lead flag, "subteam_lead" a member with theirs. */
-function readRole(fd: FormData): Role {
-  const role = str(fd, "role");
-  return role === "captain" || role === "mentor" ? role : role === "lead_mentor" ? "mentor" : "member";
+function readRole(fd: FormData): RoleFields {
+  const choice = str(fd, "role");
+  return {
+    role: choice === "captain" || choice === "mentor" ? choice : choice === "lead_mentor" ? "mentor" : "member",
+    leadMentor: choice === "lead_mentor",
+    subteamLead: choice === "subteam_lead",
+  };
 }
 
-function readLeadMentor(fd: FormData) {
-  return str(fd, "role") === "lead_mentor";
-}
-
-function readSubteamLead(fd: FormData) {
-  return str(fd, "role") === "subteam_lead";
-}
+// Only captains give or change roles, so a lead mentor can't hand anyone (or themselves) captain access.
+const PLAIN_MEMBER: RoleFields = { role: "member", leadMentor: false, subteamLead: false };
 
 const LEAD_NEEDS_SUBTEAM = "A subteam lead needs a subteam: pick one.";
 
 export async function createMember(_: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  const me = await requireStaff();
   const name = str(fd, "name");
   const email = str(fd, "email").toLowerCase();
   if (!name) return { error: "Enter a name." };
@@ -43,18 +44,18 @@ export async function createMember(_: FormState, fd: FormData): Promise<FormStat
   if (await emailTaken(email)) return { error: "Someone with that email already exists." };
   const subteam = normalizeSubteam(optStr(fd, "subteam"));
   if (subteam === undefined) return { error: "Pick a subteam from the list." };
-  if (readSubteamLead(fd) && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
-  const role = readRole(fd);
+  const r = me.role === "captain" ? readRole(fd) : PLAIN_MEMBER;
+  if (r.subteamLead && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
   const id = await tx(async () => {
     const { id } = await run(
       "INSERT INTO users (name, email, role, lead_mentor, subteam_lead, subteam, grade, phone, joined_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
       name,
       email,
-      role,
-      readLeadMentor(fd),
-      readSubteamLead(fd),
+      r.role,
+      r.leadMentor,
+      r.subteamLead,
       subteam,
-      role === "mentor" ? null : optStr(fd, "grade"),
+      r.role === "mentor" ? null : optStr(fd, "grade"),
       optStr(fd, "phone"),
       new Date().getFullYear(),
     );
@@ -68,7 +69,7 @@ export async function createMember(_: FormState, fd: FormData): Promise<FormStat
 
 /** Adds many members at once from pasted lines of "Name, email, subteam, grade". */
 export async function importMembers(_: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const lines = str(fd, "rows")
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -113,20 +114,28 @@ export async function importMembers(_: FormState, fd: FormData): Promise<FormSta
 }
 
 export async function updateMember(id: number, _: FormState, fd: FormData): Promise<FormState> {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const name = str(fd, "name");
   const email = str(fd, "email").toLowerCase();
   if (!name) return { error: "Enter a name." };
   if (!EMAIL_RE.test(email)) return { error: "Enter a valid email." };
   if (await emailTaken(email, id)) return { error: "Someone else already uses that email." };
-  const role = readRole(fd);
+  const current = await one<{ role: Role; lead_mentor: number; subteam_lead: number; active: number }>(
+    "SELECT role, lead_mentor, subteam_lead, active FROM users WHERE id = ?",
+    id,
+  );
+  if (!current) return { error: "Member not found." };
+  const captain = me.role === "captain";
+  const r = captain ? readRole(fd) : { role: current.role, leadMentor: !!current.lead_mentor, subteamLead: !!current.subteam_lead };
   const active = str(fd, "active") !== "0";
-  if (id === me.id && (role !== "captain" || !active)) return { error: "You can't remove your own captain access." };
+  if (id === me.id && captain && (r.role !== "captain" || !active)) return { error: "You can't remove your own captain access." };
+  if (id === me.id && !active) return { error: "You can't make yourself inactive." };
+  if (!captain && current.role === "captain" && active !== !!current.active) return { error: "Only captains can change a captain's status." };
   const birthday = optStr(fd, "birthday");
   if (birthday && !DATE_RE.test(birthday)) return { error: "Birthday must be a date." };
   const subteam = normalizeSubteam(optStr(fd, "subteam"));
   if (subteam === undefined) return { error: "Pick a subteam from the list." };
-  if (readSubteamLead(fd) && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
+  if (r.subteamLead && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
 
   await tx(async () => {
     await run(
@@ -135,9 +144,9 @@ export async function updateMember(id: number, _: FormState, fd: FormData): Prom
        WHERE id = ?`,
       name,
       email,
-      role,
-      readLeadMentor(fd),
-      readSubteamLead(fd),
+      r.role,
+      r.leadMentor,
+      r.subteamLead,
       active,
       optStr(fd, "phone"),
       optStr(fd, "grade"),
@@ -182,7 +191,7 @@ export async function updateMyProfile(_: FormState, fd: FormData): Promise<FormS
 }
 
 export async function makeInviteLink(memberId: number, _: FormState): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const member = await one<{ name: string; has_password: number }>(
     "SELECT name, (password_hash IS NOT NULL)::int AS has_password FROM users WHERE id = ?",
     memberId,
@@ -199,7 +208,7 @@ export async function makeInviteLink(memberId: number, _: FormState): Promise<Fo
 }
 
 export async function addNote(memberId: number, _: FormState, fd: FormData): Promise<FormState> {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const body = str(fd, "body");
   if (!body) return { error: "Write something first." };
   await run("INSERT INTO captain_notes (member_id, author_id, body) VALUES (?, ?, ?)", memberId, me.id, body.slice(0, 4000));
@@ -208,13 +217,13 @@ export async function addNote(memberId: number, _: FormState, fd: FormData): Pro
 }
 
 export async function deleteNote(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   await run("DELETE FROM captain_notes WHERE id = ?", Number(fd.get("id")));
   revalidatePath("/", "layout");
 }
 
 export async function addVisit(memberId: number, _: FormState, fd: FormData): Promise<FormState> {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const t = readVisitTimes(fd);
   if ("error" in t) return { error: t.error };
   if (!t.checkOut && (await one("SELECT 1 FROM visits WHERE user_id = ? AND check_out IS NULL", memberId))) {
@@ -233,7 +242,7 @@ export async function addVisit(memberId: number, _: FormState, fd: FormData): Pr
 }
 
 export async function updateVisit(visitId: number, _: FormState, fd: FormData): Promise<FormState> {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const t = readVisitTimes(fd);
   if ("error" in t) return { error: t.error };
   const current = await one<{ check_out: string | null; out_method: string | null }>("SELECT check_out, out_method FROM visits WHERE id = ?", visitId);
@@ -249,7 +258,7 @@ export async function updateVisit(visitId: number, _: FormState, fd: FormData): 
 }
 
 export async function deleteVisit(visitId: number) {
-  await requireCaptain();
+  await requireStaff();
   await run("DELETE FROM visits WHERE id = ?", visitId);
   revalidatePath("/", "layout");
 }

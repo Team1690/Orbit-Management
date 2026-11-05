@@ -3,14 +3,14 @@ import Link from "next/link";
 import { createMember, importMembers } from "@/actions/members";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { SubteamSelect, TeamCheckboxes } from "@/components/member-fields";
 import { GRADES, SUBTEAMS } from "@/lib/members";
 
 export const metadata: Metadata = { title: "Add members" };
 
 export default async function NewMemberPage() {
-  await requireCaptain();
+  const me = await requireStaff();
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
@@ -43,15 +43,21 @@ export default async function NewMemberPage() {
             <Field label="Phone">
               <input name="phone" type="tel" className="input" />
             </Field>
-            <Field label="Role">
-              <select name="role" className="input" defaultValue="member">
-                <option value="member">Member</option>
-                <option value="subteam_lead">Subteam lead (sees their subteam&apos;s attendance)</option>
-                <option value="captain">Captain</option>
-                <option value="mentor">Mentor</option>
-                <option value="lead_mentor">Lead mentor (sees every upcoming meeting)</option>
-              </select>
-            </Field>
+            {me.role === "captain" ? (
+              <Field label="Role">
+                <select name="role" className="input" defaultValue="member">
+                  <option value="member">Member</option>
+                  <option value="subteam_lead">Subteam lead (sees their subteam&apos;s attendance)</option>
+                  <option value="captain">Captain</option>
+                  <option value="mentor">Mentor</option>
+                  <option value="lead_mentor">Lead mentor (Dashboard, Members and Hours, like a captain)</option>
+                </select>
+              </Field>
+            ) : (
+              <Field label="Role" hint="New members join as members. A captain can change their role.">
+                <input readOnly value="Member" className="input bg-slate-50 text-slate-600" />
+              </Field>
+            )}
             <TeamCheckboxes className="sm:col-span-2" />
             <div className="sm:col-span-2">
               <SubmitButton pendingText="Adding…">Add member</SubmitButton>

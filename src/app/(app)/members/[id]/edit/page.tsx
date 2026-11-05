@@ -4,14 +4,16 @@ import { notFound } from "next/navigation";
 import { updateMember } from "@/actions/members";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { SubjectInputs, SubteamSelect, TeamCheckboxes } from "@/components/member-fields";
-import { GRADES, SHIRT_SIZES, getMember, roleChoice } from "@/lib/members";
+import { GRADES, SHIRT_SIZES, getMember, roleChoice, roleLabel } from "@/lib/members";
 
 export const metadata: Metadata = { title: "Edit member" };
 
 export default async function EditMemberPage({ params }: PageProps<"/members/[id]/edit">) {
-  await requireCaptain();
+  const me = await requireStaff();
+  // Roles, and a captain's status, are for captains to change; lead mentors see them read-only.
+  const captain = me.role === "captain";
   const id = Number((await params).id);
   const m = await getMember(id);
   if (!m) notFound();
@@ -43,21 +45,34 @@ export default async function EditMemberPage({ params }: PageProps<"/members/[id
               ))}
             </select>
           </Field>
-          <Field label="Role">
-            <select name="role" defaultValue={roleChoice(m)} className="input">
-              <option value="member">Member</option>
-              <option value="subteam_lead">Subteam lead (sees their subteam&apos;s attendance)</option>
-              <option value="captain">Captain</option>
-              <option value="mentor">Mentor</option>
-              <option value="lead_mentor">Lead mentor (sees every upcoming meeting)</option>
-            </select>
-          </Field>
-          <Field label="Status" hint="Inactive members can't log in and aren't counted in attendance.">
-            <select name="active" defaultValue={m.active ? "1" : "0"} className="input">
-              <option value="1">Active</option>
-              <option value="0">Inactive</option>
-            </select>
-          </Field>
+          {captain ? (
+            <Field label="Role">
+              <select name="role" defaultValue={roleChoice(m)} className="input">
+                <option value="member">Member</option>
+                <option value="subteam_lead">Subteam lead (sees their subteam&apos;s attendance)</option>
+                <option value="captain">Captain</option>
+                <option value="mentor">Mentor</option>
+                <option value="lead_mentor">Lead mentor (Dashboard, Members and Hours, like a captain)</option>
+              </select>
+            </Field>
+          ) : (
+            <Field label="Role" hint="Only captains can change roles.">
+              <input readOnly value={roleLabel(m)} className="input bg-slate-50 text-slate-600" />
+            </Field>
+          )}
+          {captain || m.role !== "captain" ? (
+            <Field label="Status" hint="Inactive members can't log in and aren't counted in attendance.">
+              <select name="active" defaultValue={m.active ? "1" : "0"} className="input">
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+              </select>
+            </Field>
+          ) : (
+            <Field label="Status" hint="Only captains can change a captain's status.">
+              <input type="hidden" name="active" value={m.active ? "1" : "0"} />
+              <input readOnly value={m.active ? "Active" : "Inactive"} className="input bg-slate-50 text-slate-600" />
+            </Field>
+          )}
           <TeamCheckboxes selected={m.teams} className="sm:col-span-2" />
           <SubjectInputs subject1={m.subject_1} subject2={m.subject_2} className="sm:col-span-2" />
           <Field label="Phone">

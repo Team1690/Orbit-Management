@@ -218,6 +218,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN subteam_lead INTEGER NOT NULL DEFAULT 0;
   `,
+
+  // 8: lead mentors get the captains' alerts unless they turn them off in Profile.
+  `
+  ALTER TABLE users ADD COLUMN staff_alerts INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

@@ -2,8 +2,8 @@ import webpush from "web-push";
 import { all, run, tx } from "./db";
 import { getSettings, setSetting } from "./settings";
 
-// Web Push: notifications on phones (installed app on iPhone, any browser on Android). Captains get
-// alerts; members get RSVP reminders.
+// Web Push: notifications on phones (installed app on iPhone, any browser on Android). Captains and
+// lead mentors get alerts (lead mentors can turn them off); members get RSVP reminders.
 
 export type PushPayload = { title: string; body: string; url: string; tag?: string };
 
@@ -42,9 +42,11 @@ export async function saveSubscription(userId: number, sub: { endpoint: string; 
   );
 }
 
-/** Sends to every device where an active captain turned on alerts. Returns how many got it. */
+/** Sends to every device of active captains, and of lead mentors who keep captain alerts on. Returns how many got it. */
 export async function pushToCaptains(payload: PushPayload) {
-  const captains = await all<{ id: number }>("SELECT id FROM users WHERE role = 'captain' AND active = 1");
+  const captains = await all<{ id: number }>(
+    "SELECT id FROM users WHERE active = 1 AND (role = 'captain' OR (role = 'mentor' AND lead_mentor = 1 AND staff_alerts = 1))",
+  );
   return pushToUsers(
     captains.map((c) => c.id),
     payload,

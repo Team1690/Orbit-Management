@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { run } from "@/lib/db";
 import { pushToUsers, saveSubscription } from "@/lib/push";
@@ -18,6 +19,14 @@ export async function savePushSubscription(sub: SubscriptionJSON) {
 export async function removePushSubscription(endpoint: string) {
   const me = await requireUser();
   await run("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", endpoint, me.id);
+}
+
+/** Lead mentors: turn the captains' alerts on or off (meeting reminders keep coming either way). */
+export async function setStaffAlerts(fd: FormData) {
+  const me = await requireUser();
+  if (me.role !== "mentor" || !me.lead_mentor) return;
+  await run("UPDATE users SET staff_alerts = ? WHERE id = ?", fd.get("on") === "1", me.id);
+  revalidatePath("/profile");
 }
 
 /** Sends a test to the caller's own devices. */

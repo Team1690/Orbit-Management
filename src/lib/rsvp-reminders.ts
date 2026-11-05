@@ -76,7 +76,10 @@ export async function sendRsvpNotifications(now = new Date()) {
   }
 }
 
-/** Each meeting's own reminder, `reminder_hours` before the start, to everyone expected except those who can't come. */
+/**
+ * Each meeting's own reminder, `reminder_hours` before the start, to everyone expected except those
+ * who can't come, and to lead mentors (they follow every meeting, even with captain alerts off).
+ */
 export async function sendMeetingReminders(now = new Date()) {
   const today = localParts(now, (await getSettings()).timezone).date;
   // Reminders are at most a week ahead (see actions/meetings.ts).
@@ -85,13 +88,14 @@ export async function sendMeetingReminders(now = new Date()) {
     today,
     addDays(today, 8),
   );
+  const leadMentors = (await all<{ id: number }>("SELECT id FROM users WHERE active = 1 AND role = 'mentor' AND lead_mentor = 1")).map((u) => u.id);
   for (const m of due) {
     const { start, end } = meetingWindow(m);
     const left = start.getTime() - now.getTime();
     if (left <= 0 || left > m.reminder_hours! * HOUR) continue;
     if (!(await claim("reminder_sent_at", m, now))) continue;
     const rows = (await computeAttendance([m])).get(m.id) ?? new Map();
-    const to = [...rows].filter(([, e]) => e.rsvp?.response !== "no").map(([id]) => id as number);
+    const to = [...[...rows].filter(([, e]) => e.rsvp?.response !== "no").map(([id]) => id as number), ...leadMentors];
     await send("meeting reminder", m, to, {
       title: `Reminder: ${m.title}`,
       body: `${relativeDay(m.date)} ${fmtTime(start)}–${fmtTime(end)}. See you there!`,

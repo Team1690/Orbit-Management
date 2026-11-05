@@ -7,7 +7,7 @@ import { PushToggle } from "@/components/push-toggle";
 import { Avatar, Badge, Banner, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { alertsToday } from "@/lib/alerts";
 import { computeAttendance, summarize, type AttendanceEntry, type AttendanceSummary } from "@/lib/attendance";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, minutesLate, pct, relativeDay } from "@/lib/format";
 import { rsvpDetail } from "@/lib/late-by";
@@ -47,7 +47,8 @@ function NameList({ ids, members, detail }: { ids: number[]; members: Map<number
   );
 }
 
-async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: Map<number, Member> }) {
+/** `captain`: the link to the meeting's full sheet (Meetings is captain-only). */
+async function MeetingPanel({ meeting, members, captain }: { meeting: Meeting; members: Map<number, Member>; captain: boolean }) {
   const { start, end } = meetingWindow(meeting);
   const now = new Date();
   const started = now >= start;
@@ -86,9 +87,11 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
         </span>
       }
       actions={
-        <Link href={`/meetings/${meeting.id}`} className="link text-sm">
-          Full sheet
-        </Link>
+        captain && (
+          <Link href={`/meetings/${meeting.id}`} className="link text-sm">
+            Full sheet
+          </Link>
+        )
       }
     >
       {started && (
@@ -201,7 +204,9 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
 }
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  await requireCaptain();
+  // Captains and lead mentors; lead mentors don't get links into Meetings or Settings.
+  const me = await requireStaff();
+  const captain = me.role === "captain";
   await runTick();
   const { welcome } = await searchParams;
 
@@ -284,7 +289,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         }
       />
 
-      {welcome && (
+      {welcome && captain && (
         <Banner tone="blue">
           Your team is set up. Next: add your weekly meeting times on the <Link href="/meetings" className="link">Meetings</Link> page,
           then <Link href="/members/new" className="link">add your members</Link>.
@@ -311,11 +316,16 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           {panels.length > 0 ? (
-            panels.map((m) => <MeetingPanel key={m.id} meeting={m} members={memberMap} />)
+            panels.map((m) => <MeetingPanel key={m.id} meeting={m} members={memberMap} captain={captain} />)
           ) : (
             <Card title="Meetings">
               <Empty>
-                No upcoming meetings. <Link href="/meetings" className="link">Set up the weekly schedule</Link>.
+                No upcoming meetings.{" "}
+                {captain && (
+                  <Link href="/meetings" className="link">
+                    Set up the weekly schedule
+                  </Link>
+                )}
               </Empty>
             </Card>
           )}
@@ -385,9 +395,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <ul className="mb-3 space-y-2">
                 {alerts.map((a) => (
                   <li key={a.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <Link href={a.meeting_id ? `/meetings/${a.meeting_id}` : "/dashboard"} className="text-sm font-semibold text-amber-950 hover:underline">
-                      {a.title}
-                    </Link>
+                    {captain && a.meeting_id ? (
+                      <Link href={`/meetings/${a.meeting_id}`} className="text-sm font-semibold text-amber-950 hover:underline">
+                        {a.title}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-semibold text-amber-950">{a.title}</p>
+                    )}
                     <p className="mt-0.5 text-xs text-amber-900">{a.body}</p>
                     <p className="mt-1 text-[11px] text-amber-700">{fmtTime(a.created_at)}</p>
                   </li>
