@@ -54,8 +54,9 @@ body {
   .label {
     @apply mb-1 block text-sm font-medium text-slate-700;
   }
+  /* Tables sit in unpadded cards (pad={false}), so they scroll sideways inside the card's edges. */
   .table-wrap {
-    @apply -mx-4 overflow-x-auto sm:mx-0;
+    @apply overflow-x-auto;
   }
   .table {
     @apply w-full text-left text-sm;

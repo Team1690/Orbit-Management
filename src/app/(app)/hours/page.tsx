@@ -75,14 +75,15 @@ export default async function HoursPage({ searchParams }: PageProps<"/hours">) {
             {q.label}
           </Link>
         ))}
-        <form className="flex items-end gap-2">
-          <input type="date" name="from" defaultValue={period.startDate} className="input w-auto py-1.5" aria-label="From" />
-          <input type="date" name="to" defaultValue={period.endDate} className="input w-auto py-1.5" aria-label="To" />
-          <button className="btn btn-secondary btn-sm">Apply</button>
+        {/* Phones: the two dates share a row (each shrinks to fit) and Apply goes under them. */}
+        <form className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-end">
+          <input type="date" name="from" defaultValue={period.startDate} className="input min-w-0 py-1.5 sm:w-auto" aria-label="From" />
+          <input type="date" name="to" defaultValue={period.endDate} className="input min-w-0 py-1.5 sm:w-auto" aria-label="To" />
+          <button className="btn btn-secondary btn-sm col-span-2 sm:col-span-1">Apply</button>
         </form>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card pad={false} className="lg:col-span-2">
           {rows.length === 0 ? (
             <Empty>No members yet.</Empty>

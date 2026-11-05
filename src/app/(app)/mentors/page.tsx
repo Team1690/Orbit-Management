@@ -73,7 +73,7 @@ export default async function MentorsPage() {
     <div>
       <PageHeader title="Mentors" subtitle="When our mentors are coming in, so you know who to ask for help." />
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           {here.length > 0 && (
             <Card title={`At school now (${here.length})`}>

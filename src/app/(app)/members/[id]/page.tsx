@@ -138,7 +138,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
         )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title="Captain notes" actions={<Badge tone="purple">Captains only</Badge>}>
             <ActionForm action={addNote.bind(null, id)} className="mb-4 flex flex-col gap-2">

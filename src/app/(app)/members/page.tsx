@@ -108,9 +108,10 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
         }
       />
 
-      <form className="mb-4 flex flex-wrap gap-2">
-        <input name="q" defaultValue={q} placeholder="Search name, email, phone" className="input max-w-xs flex-1" />
-        <select name="subteam" defaultValue={subteam} className="input w-auto">
+      {/* Phones: search on its own row, then two controls per row. */}
+      <form className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <input name="q" defaultValue={q} placeholder="Search name, email, phone" className="input col-span-2 sm:max-w-xs sm:flex-1" />
+        <select name="subteam" defaultValue={subteam} className="input sm:w-auto">
           <option value="">All teams</option>
           <optgroup label="Subteams">
             {SUBTEAMS.map((s) => (
@@ -123,14 +124,14 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
             ))}
           </optgroup>
         </select>
-        <select name="filter" defaultValue={filter} className="input w-auto">
+        <select name="filter" defaultValue={filter} className="input sm:w-auto">
           {FILTERS.map((f) => (
             <option key={f.value} value={f.value}>
               {f.label}
             </option>
           ))}
         </select>
-        <select name="sort" defaultValue={sort} className="input w-auto" aria-label="Sort">
+        <select name="sort" defaultValue={sort} className="input sm:w-auto" aria-label="Sort">
           {SORTS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
