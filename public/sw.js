@@ -14,6 +14,8 @@ self.addEventListener("push", (event) => {
       badge: "/pwa-icon/192",
       tag: data.tag,
       renotify: Boolean(data.tag),
+      // FYIs about open meetings someone isn't expected at arrive quietly (iPhones ignore this).
+      silent: Boolean(data.silent),
       data: { url: data.url || "/dashboard" },
     }),
   );

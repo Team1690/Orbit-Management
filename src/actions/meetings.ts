@@ -12,6 +12,7 @@ import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { today } from "@/lib/periods";
 import { sendRsvpNotifications } from "@/lib/rsvp-reminders";
 import { sendVolunteerAsks } from "@/lib/volunteers";
+import { sendOpenMeetingFyi } from "@/lib/open-meetings";
 
 /** The teams a meeting can be limited to. */
 const AUDIENCE_TEAMS = [...SUBTEAMS, ...EXTRA_TEAMS];
@@ -75,6 +76,7 @@ function readMeeting(fd: FormData) {
     end,
     mandatory: bool(fd, "mandatory"),
     rsvp: bool(fd, "rsvp"),
+    openToAll: bool(fd, "open_to_all"),
     notes: optStr(fd, "notes"),
     audience: readAudience(fd, AUDIENCE_TEAMS),
     reminderHours,
@@ -89,13 +91,14 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   if ("error" in v) return { error: v.error };
   const id = await tx(async () => {
     const { id } = await run(
-      "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience, reminder_hours, volunteer_reask_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, open_to_all, notes, audience, reminder_hours, volunteer_reask_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
       m.title,
       m.date,
       m.start,
       m.end,
       m.mandatory,
       m.rsvp,
+      m.openToAll,
       m.notes,
       m.audience,
       m.reminderHours,
@@ -108,6 +111,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   // rather than on the next tick.
   await sendRsvpNotifications().catch((err) => console.error("[orbit] RSVP notifications failed", err));
   await sendVolunteerAsks().catch((err) => console.error("[orbit] volunteer requests failed", err));
+  await sendOpenMeetingFyi().catch((err) => console.error("[orbit] open meeting FYI failed", err));
   revalidatePath("/", "layout");
   redirect(`/meetings/${id}`);
 }
@@ -129,7 +133,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     });
   }
   await run(
-    `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ?, audience = ?,
+    `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, open_to_all = ?, notes = ?, audience = ?,
        -- A new reminder time or a moved meeting gets its reminder again.
        reminder_sent_at = CASE WHEN reminder_hours IS DISTINCT FROM ?::int OR date <> ? OR start_time <> ? THEN NULL ELSE reminder_sent_at END,
        reminder_hours = ?
@@ -140,6 +144,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     m.end,
     m.mandatory,
     m.rsvp,
+    m.openToAll,
     m.notes,
     m.audience,
     m.reminderHours,
@@ -150,6 +155,8 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
   );
   // Volunteer slots added to a meeting that hasn't asked yet go out now.
   if (v?.slots.length) await sendVolunteerAsks().catch((err) => console.error("[orbit] volunteer requests failed", err));
+  // A meeting just made open sends its FYI now.
+  if (m.openToAll) await sendOpenMeetingFyi().catch((err) => console.error("[orbit] open meeting FYI failed", err));
   revalidatePath("/", "layout");
   return { message: "Saved." };
 }

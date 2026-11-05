@@ -58,9 +58,14 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   // Captains and lead mentors see every upcoming meeting; everyone else only the ones they're expected at.
   const seesAll = user.role === "captain" || (user.role === "mentor" && !!me?.lead_mentor);
   const upcoming = (await meetingsBetween(t, addDays(t, 13), false))
-    .filter((m) => (seesAll || forMe(m)) && meetingWindow(m).end > new Date())
+    .filter((m) => (seesAll || forMe(m) || !!m.open_to_all) && meetingWindow(m).end > new Date())
     .slice(0, seesAll ? 10 : 6);
   const upcomingRsvps = new Map((await rsvpsFor(upcoming.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
+
+  /** Open meetings in the next two weeks that this person isn't expected at: welcome, not required. */
+  const openToMe = (await meetingsBetween(t, addDays(t, 13), false)).filter(
+    (m) => !!m.open_to_all && !forMe(m) && meetingWindow(m).start > new Date() && !volunteerRequests.some((r) => r.meeting.id === m.id),
+  );
 
   const past = (await meetingsBetween(addDays(t, -30), t, false))
     .filter((m) => forMe(m) && meetingWindow(m).end <= new Date())
@@ -188,6 +193,29 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </Card>
       )}
 
+      {openToMe.length > 0 && (
+        <Card title="Open to everyone" className="border-emerald-200">
+          <ul className="divide-y divide-slate-100">
+            {openToMe.map((m) => {
+              const { start, end } = meetingWindow(m);
+              return (
+                <li key={m.id} className="py-2.5 text-sm first:pt-0 last:pb-0">
+                  <div>
+                    <span className="font-semibold text-slate-900">{m.title}</span>
+                    <span className="text-slate-500">
+                      {" "}
+                      · {relativeDay(m.date)} {fmtTime(start)}–{fmtTime(end)}
+                    </span>
+                  </div>
+                  {m.notes && <p className="mt-0.5 text-slate-600">{m.notes}</p>}
+                  <p className="mt-0.5 text-xs text-slate-500">You&apos;re not required, but you&apos;re welcome to come.</p>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       {volunteerRequests.map(({ meeting: m, open }) => {
         const { start, end } = meetingWindow(m);
         return (
@@ -262,6 +290,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                     <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
                       {m.title}
                       {forWho && <Badge tone="blue">For: {forWho}</Badge>}
+                      {!!m.open_to_all && <Badge tone="green">Open</Badge>}
                     </div>
                     <div className="text-xs text-slate-500">
                       {relativeDay(m.date)} · {fmtTime(start)}–{fmtTime(end)}
@@ -271,7 +300,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                   {m.rsvp && !mentor && forMe(m) ? (
                     <RsvpBadge response={upcomingRsvps.get(m.id)?.response} lateByMin={upcomingRsvps.get(m.id)?.late_by_min} />
                   ) : !mentor && !forMe(m) ? (
-                    <span className="shrink-0 text-xs text-slate-400">Not required for you</span>
+                    <span className="shrink-0 text-xs text-slate-400">{m.open_to_all ? "Open: come if you'd like" : "Not required for you"}</span>
                   ) : null}
                 </li>
               );

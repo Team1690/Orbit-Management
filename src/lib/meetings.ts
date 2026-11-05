@@ -27,6 +27,9 @@ export type Meeting = {
   volunteer_reask_hours: number | null;
   volunteer_ask_at: string | null;
   volunteer_reask_at: string | null;
+  /** Open: everyone sees it and gets an FYI; closed (0): only the people invited see it. */
+  open_to_all: number;
+  fyi_sent_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";

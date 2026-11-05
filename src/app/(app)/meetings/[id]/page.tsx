@@ -76,6 +76,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
             {meeting.cancelled ? <Badge tone="red">Cancelled</Badge> : null}
             {!meeting.mandatory ? <Badge>Optional</Badge> : null}
             {!meeting.rsvp ? <Badge>No RSVP</Badge> : null}
+            {meeting.open_to_all ? <Badge tone="green">Open to everyone</Badge> : null}
             <Badge tone="blue">For: {audienceLabel(parseAudience(meeting.audience)) ?? "whole team"}</Badge>
             {meeting.reminder_hours ? (
               <Badge>
@@ -275,6 +276,13 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               </label>
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked={!!meeting.rsvp} className="size-4" /> Ask members to RSVP
+              </label>
+              <label className="col-span-2 flex items-start gap-2 text-sm">
+                <input type="checkbox" name="open_to_all" defaultChecked={!!meeting.open_to_all} className="mt-0.5 size-4" />
+                <span>
+                  Open meeting
+                  <span className="block text-xs text-slate-500">Everyone sees it on their home screen and gets an FYI notification, quiet for those not invited. Unticked, only the people invited see it.</span>
+                </span>
               </label>
               <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">
                 <input name="reminder_hours" type="number" min={1} max={168} placeholder="e.g. 2" defaultValue={meeting.reminder_hours ?? ""} className="input" />

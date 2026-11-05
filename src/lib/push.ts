@@ -5,7 +5,8 @@ import { getSettings, setSetting } from "./settings";
 // Web Push: notifications on phones (installed app on iPhone, any browser on Android). Captains and
 // lead mentors get alerts (lead mentors can turn them off); members get RSVP reminders.
 
-export type PushPayload = { title: string; body: string; url: string; tag?: string };
+/** silent: no sound or vibration where the browser allows it (Android, desktop; iPhones ignore it). */
+export type PushPayload = { title: string; body: string; url: string; tag?: string; silent?: boolean };
 
 async function vapidKeys() {
   const s = await getSettings();

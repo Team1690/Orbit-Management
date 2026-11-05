@@ -245,6 +245,13 @@ const MIGRATIONS: string[] = [
   ALTER TABLE meetings ADD COLUMN volunteer_ask_at TEXT;
   ALTER TABLE meetings ADD COLUMN volunteer_reask_at TEXT;
   `,
+
+  // 10: an open meeting shows on everyone's home screen and sends everyone an FYI (quiet for those not
+  // expected); a closed one (the default) is only for the people invited.
+  `
+  ALTER TABLE meetings ADD COLUMN open_to_all INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE meetings ADD COLUMN fyi_sent_at TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */
