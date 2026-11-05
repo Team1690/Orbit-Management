@@ -16,6 +16,7 @@ import { WEEKDAY_NAMES } from "@/lib/meetings";
 import { listMentors, mentorPlan, mentorSlots, type PlanEntry } from "@/lib/mentors";
 import { today } from "@/lib/periods";
 import { presentNow } from "@/lib/visits";
+import { TimeInput } from "@/components/time-input";
 
 export const metadata: Metadata = { title: "Mentors" };
 
@@ -26,8 +27,8 @@ function EntryActions({ entry, date }: { entry: PlanEntry; date: string }) {
         <Reveal label="Edit" className="text-xs font-medium text-brand-700 hover:underline">
           <ActionForm action={updateMentorVisit.bind(null, entry.changeId!)} className="flex flex-wrap items-end gap-2 rounded-xl bg-slate-50 p-2">
             <input name="date" type="date" defaultValue={date} required className="input w-auto py-1 text-xs" aria-label="Date" />
-            <input name="start_time" type="time" defaultValue={entry.start} required className="input w-auto py-1 text-xs" aria-label="Arrive" />
-            <input name="end_time" type="time" defaultValue={entry.end} required className="input w-auto py-1 text-xs" aria-label="Leave" />
+            <TimeInput name="start_time" defaultValue={entry.start} required compact aria-label="Arrive" />
+            <TimeInput name="end_time" defaultValue={entry.end} required compact aria-label="Leave" />
             <input name="note" defaultValue={entry.note ?? ""} maxLength={200} placeholder="Note" className="input w-36 py-1 text-xs" aria-label="Note" />
             <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
           </ActionForm>
@@ -158,8 +159,8 @@ export default async function MentorsPage() {
                                 </option>
                               ))}
                             </select>
-                            <input name="start_time" type="time" defaultValue={s.start_time} required className="input" aria-label="Arrive" />
-                            <input name="end_time" type="time" defaultValue={s.end_time} required className="input" aria-label="Leave" />
+                            <TimeInput name="start_time" defaultValue={s.start_time} required aria-label="Arrive" />
+                            <TimeInput name="end_time" defaultValue={s.end_time} required aria-label="Leave" />
                             <input name="note" defaultValue={s.note ?? ""} maxLength={200} placeholder="Note (optional)" className="input col-span-2" aria-label="Note" />
                             <div className="col-span-2">
                               <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
@@ -181,10 +182,10 @@ export default async function MentorsPage() {
                     </select>
                   </Field>
                   <Field label="Arrive">
-                    <input name="start_time" type="time" defaultValue="17:00" required className="input" />
+                    <TimeInput name="start_time" defaultValue="17:00" required />
                   </Field>
                   <Field label="Leave">
-                    <input name="end_time" type="time" defaultValue="19:00" required className="input" />
+                    <TimeInput name="end_time" defaultValue="19:00" required />
                   </Field>
                   <Field label="Note (optional)" className="col-span-2">
                     <input name="note" maxLength={200} placeholder="e.g. Helping with the swerve modules" className="input" />
@@ -201,10 +202,10 @@ export default async function MentorsPage() {
                     <input name="date" type="date" defaultValue={t} min={t} required className="input" />
                   </Field>
                   <Field label="Arrive">
-                    <input name="start_time" type="time" defaultValue="17:00" required className="input" />
+                    <TimeInput name="start_time" defaultValue="17:00" required />
                   </Field>
                   <Field label="Leave">
-                    <input name="end_time" type="time" defaultValue="19:00" required className="input" />
+                    <TimeInput name="end_time" defaultValue="19:00" required />
                   </Field>
                   <Field label="Note (optional)" className="col-span-2">
                     <input name="note" maxLength={200} className="input" />

@@ -6,7 +6,7 @@ import { ActionForm, ConfirmButton, Reveal, SubmitButton } from "@/components/cl
 import { Badge, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { computeAttendance } from "@/lib/attendance";
 import { audienceLabel, inAudience, parseAudience } from "@/lib/audience";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { fmtDate, fmtTime, relativeDay } from "@/lib/format";
 import { APPLIES_LABEL, WEEKDAY_NAMES, listSchedule, meetingWindow, meetingsBetween, rsvpsFor, seasonKindOn, type Meeting } from "@/lib/meetings";
 import { listStudents } from "@/lib/members";
@@ -14,6 +14,9 @@ import { today } from "@/lib/periods";
 import { getSettings } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
 import { addDays } from "@/lib/timeutil";
+import { TimeInput } from "@/components/time-input";
+import { VolunteerFields } from "@/components/volunteer-fields";
+import { slotsFor, volunteersFor } from "@/lib/volunteers";
 
 export const metadata: Metadata = { title: "Meetings" };
 
@@ -30,19 +33,22 @@ function MeetingFlags({ m }: { m: Meeting }) {
 }
 
 export default async function MeetingsPage() {
-  await requireCaptain();
+  await requireStaff();
   await runTick();
   const { schedule_days_ahead } = await getSettings();
   const t = today();
   const now = new Date();
   const students = await listStudents();
-  /** The students a meeting is for. */
+  const upcoming = (await meetingsBetween(t, addDays(t, schedule_days_ahead))).filter((m) => meetingWindow(m).end > now);
+  const slots = await slotsFor(upcoming.map((m) => m.id));
+  const volunteers = await volunteersFor(upcoming.map((m) => m.id));
+  /** The students a meeting is for: its audience plus its volunteers. */
   const expected = (m: Meeting) => {
     const audience = parseAudience(m.audience);
-    return new Set(students.filter((s) => inAudience(audience, s)).map((s) => s.id));
+    const extra = new Set((volunteers.get(m.id) ?? []).map((v) => v.user_id));
+    return new Set(students.filter((s) => extra.has(s.id) || inAudience(audience, s)).map((s) => s.id));
   };
 
-  const upcoming = (await meetingsBetween(t, addDays(t, schedule_days_ahead))).filter((m) => meetingWindow(m).end > now);
   const invited = new Map(upcoming.map((m) => [m.id, expected(m)]));
   const counts = new Map<number, { yes: number; late: number; no: number }>();
   for (const r of await rsvpsFor(upcoming.map((m) => m.id))) {
@@ -87,6 +93,11 @@ export default async function MeetingsPage() {
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                             {fmtTime(start)}–{fmtTime(end)} <MeetingFlags m={m} />
+                            {slots.has(m.id) && (
+                              <Badge tone="purple">
+                                Volunteers {volunteers.get(m.id)?.length ?? 0}/{slots.get(m.id)!.reduce((n, sl) => n + sl.wanted, 0)}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         {m.rsvp && !m.cancelled ? (
@@ -227,10 +238,10 @@ export default async function MeetingsPage() {
                 </select>
               </Field>
               <Field label="Start">
-                <input name="start_time" type="time" defaultValue="16:00" required className="input" />
+                <TimeInput name="start_time" defaultValue="16:00" required />
               </Field>
               <Field label="End">
-                <input name="end_time" type="time" defaultValue="20:00" required className="input" />
+                <TimeInput name="end_time" defaultValue="20:00" required />
               </Field>
               <Field label="Title" className="col-span-2">
                 <input name="title" defaultValue="Team meeting" className="input" />
@@ -254,10 +265,10 @@ export default async function MeetingsPage() {
                 <input name="date" type="date" defaultValue={t} required className="input" />
               </Field>
               <Field label="Start">
-                <input name="start_time" type="time" defaultValue="10:00" required className="input" />
+                <TimeInput name="start_time" defaultValue="10:00" required />
               </Field>
               <Field label="End">
-                <input name="end_time" type="time" defaultValue="16:00" required className="input" />
+                <TimeInput name="end_time" defaultValue="16:00" required />
               </Field>
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="mandatory" defaultChecked className="size-4" /> Attendance required
@@ -268,7 +279,8 @@ export default async function MeetingsPage() {
               <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">
                 <input name="reminder_hours" type="number" min={1} max={168} placeholder="e.g. 2" className="input" />
               </Field>
-              <AudiencePicker students={students} selected={null} className="col-span-2" />
+              <AudiencePicker students={students} selected={null} allowNone className="col-span-2" />
+              <VolunteerFields className="col-span-2" />
               <div className="col-span-2">
                 <SubmitButton className="btn btn-primary w-full">Create meeting</SubmitButton>
               </div>

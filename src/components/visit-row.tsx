@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import type { FormState } from "@/lib/forms";
+import { TimeInput } from "@/components/time-input";
 
 export function VisitRow({
   label,
@@ -53,11 +54,11 @@ export function VisitRow({
         </label>
         <label className="text-xs">
           <span className="label text-xs">In</span>
-          <input type="time" name="in" defaultValue={inTime} required className="input py-1.5" />
+          <TimeInput name="in" defaultValue={inTime} required step={1} />
         </label>
         <label className="text-xs">
           <span className="label text-xs">Out</span>
-          <input type="time" name="out" defaultValue={outTime} className="input py-1.5" />
+          <TimeInput name="out" defaultValue={outTime} step={1} />
         </label>
         <button type="submit" className="btn btn-primary btn-sm" disabled={pending}>
           Save

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { deleteMyVisit, updateMyVisit } from "@/actions/mentors";
 import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
+import { volunteer } from "@/actions/volunteers";
 import { SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
@@ -19,6 +20,7 @@ import { currentPeriod, thisWeek, today } from "@/lib/periods";
 import { vapidPublicKey } from "@/lib/push";
 import { getSettings, tz } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
+import { requestsFor, volunteeredMeetingIds } from "@/lib/volunteers";
 import { addDays, localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
 import { RsvpCard } from "./rsvp-card";
@@ -45,8 +47,10 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { rsvp_close_hours } = await getSettings();
   const publicKey = await vapidPublicKey();
   const me = await getMember(user.id);
-  /** Meetings this member is expected at (the whole team, one of their teams, or picked by name). */
-  const forMe = (m: Meeting) => !!me && inAudience(parseAudience(m.audience), me);
+  const volunteered = await volunteeredMeetingIds(user.id);
+  /** Meetings this member is expected at (the whole team, one of their teams, picked by name, or volunteered). */
+  const forMe = (m: Meeting) => !!me && (volunteered.has(m.id) || inAudience(parseAudience(m.audience), me));
+  const volunteerRequests = me && user.role !== "mentor" ? await requestsFor(me) : [];
   const rsvpMeetings = (await openRsvpMeetings()).filter(forMe);
   const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
@@ -183,6 +187,31 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           </ul>
         </Card>
       )}
+
+      {volunteerRequests.map(({ meeting: m, open }) => {
+        const { start, end } = meetingWindow(m);
+        return (
+          <Card key={`vol-${m.id}`} title="Volunteers needed" className="border-violet-200">
+            <div className="text-sm">
+              <span className="font-semibold text-slate-900">{m.title}</span>
+              <span className="text-slate-500">
+                {" "}
+                · {relativeDay(m.date)} {fmtTime(start)}–{fmtTime(end)}
+              </span>
+            </div>
+            {m.notes && <p className="mt-1 text-sm text-slate-600">{m.notes}</p>}
+            <p className="mt-2 text-xs text-slate-500">
+              {open.map(({ slot, left }) => `${slot.team ?? "Anyone"}: ${left} of ${slot.wanted} spot${slot.wanted === 1 ? "" : "s"} open`).join(" · ")}
+            </p>
+            <form action={volunteer} className="mt-3">
+              <input type="hidden" name="meeting_id" value={m.id} />
+              <SubmitButton className="btn btn-primary w-full" pendingText="…">
+                I&apos;ll volunteer
+              </SubmitButton>
+            </form>
+          </Card>
+        );
+      })}
 
       {!mentor && rsvpMeetings.map((m) => {
         const { start, end } = meetingWindow(m);

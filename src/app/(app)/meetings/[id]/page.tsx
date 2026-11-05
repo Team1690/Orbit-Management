@@ -8,12 +8,15 @@ import { MonitorIcon } from "@/components/icons";
 import { AttendanceBadge, Badge, Banner, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { computeAttendance, type AttendanceEntry } from "@/lib/attendance";
 import { audienceLabel, parseAudience } from "@/lib/audience";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { fmtDate, fmtDateTime, fmtTime, minutesLate } from "@/lib/format";
 import { LATE_BY_OPTIONS, lateByLabel } from "@/lib/late-by";
 import { getMeeting, meetingWindow } from "@/lib/meetings";
 import { listMembers } from "@/lib/members";
 import { getSettings } from "@/lib/settings";
+import { TimeInput } from "@/components/time-input";
+import { VolunteerFields } from "@/components/volunteer-fields";
+import { openSpots, slotsFor, volunteersFor } from "@/lib/volunteers";
 
 export const metadata: Metadata = { title: "Meeting" };
 
@@ -26,7 +29,7 @@ function rsvpValue(e: AttendanceEntry) {
 }
 
 export default async function MeetingPage({ params }: PageProps<"/meetings/[id]">) {
-  await requireCaptain();
+  await requireStaff();
   const id = Number((await params).id);
   const meeting = await getMeeting(id);
   if (!meeting) notFound();
@@ -40,6 +43,12 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
   const rows = [...((await computeAttendance([meeting])).get(id) ?? new Map<number, AttendanceEntry>())].sort(
     ([a, ea], [b, eb]) => ORDER[ea.status] - ORDER[eb.status] || members.get(a)!.name.localeCompare(members.get(b)!.name),
   );
+
+  const slots = (await slotsFor([id])).get(id) ?? [];
+  const volunteers = (await volunteersFor([id])).get(id) ?? [];
+  const open = await openSpots(id, slots, volunteers);
+  const volunteerIds = new Set(volunteers.map((v) => v.user_id));
+  const oneOff = meeting.schedule_id === null;
 
   const count = (pred: (e: AttendanceEntry) => boolean) => rows.filter(([, e]) => pred(e)).length;
   const chips = started
@@ -103,13 +112,48 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
         ))}
       </div>
 
+      {slots.length > 0 && (
+        <Card
+          title="Volunteers"
+          className="mb-5"
+          actions={
+            <span className="text-xs text-slate-500">
+              {meeting.volunteer_ask_at ? `Asked ${fmtDateTime(meeting.volunteer_ask_at)}` : "Not asked yet"}
+              {meeting.volunteer_reask_at
+                ? ` · again ${fmtDateTime(meeting.volunteer_reask_at)}`
+                : meeting.volunteer_reask_hours
+                  ? ` · asks again ${meeting.volunteer_reask_hours}h later if spots are open`
+                  : ""}
+            </span>
+          }
+        >
+          <ul className="space-y-3 text-sm">
+            {slots.map((sl) => {
+              const names = volunteers.filter((v) => v.team === sl.team).map((v) => members.get(v.user_id)?.name ?? "Former member");
+              return (
+                <li key={sl.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{sl.team ?? "Anyone on the team"}</span>
+                    <Badge tone={open.get(sl.id) ? "yellow" : "green"}>
+                      {sl.wanted - (open.get(sl.id) ?? 0)} of {sl.wanted}
+                      {open.get(sl.id) ? ` · ${open.get(sl.id)} open` : " · full"}
+                    </Badge>
+                  </div>
+                  <p className="mt-0.5 text-slate-600">{names.length ? names.join(", ") : <span className="text-slate-400">Nobody yet</span>}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       <Card
         title={`Attendance sheet (${rows.length})`}
         actions={<span className="text-xs text-slate-500">Late = checked in more than {late_grace_min} min after start</span>}
         pad={false}
       >
         {rows.length === 0 ? (
-          <Empty>No active members.</Empty>
+          <Empty>{slots.length ? "Nobody yet. Volunteers show up here once they sign up." : "No active members."}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -131,6 +175,11 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                         <Link href={`/members/${userId}`} className="font-medium hover:underline">
                           {m.name}
                         </Link>
+                        {volunteerIds.has(userId) && (
+                          <span className="ml-1.5">
+                            <Badge tone="purple">Volunteer</Badge>
+                          </span>
+                        )}
                         {m.subteam && <div className="text-xs text-slate-500">{m.subteam}</div>}
                       </td>
                       <td>
@@ -213,10 +262,10 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                 <input name="date" type="date" defaultValue={meeting.date} required className="input" />
               </Field>
               <Field label="Start">
-                <input name="start_time" type="time" defaultValue={meeting.start_time} required className="input" />
+                <TimeInput name="start_time" defaultValue={meeting.start_time} required />
               </Field>
               <Field label="End">
-                <input name="end_time" type="time" defaultValue={meeting.end_time} required className="input" />
+                <TimeInput name="end_time" defaultValue={meeting.end_time} required />
               </Field>
               <Field label="Notes for this meeting" className="col-span-2">
                 <textarea name="notes" rows={2} defaultValue={meeting.notes ?? ""} className="input" />
@@ -233,8 +282,10 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               <AudiencePicker
                 students={[...members.values()].filter((s) => s.active && s.role !== "mentor")}
                 selected={parseAudience(meeting.audience)}
+                allowNone={oneOff}
                 className="col-span-2"
               />
+              {oneOff && <VolunteerFields slots={slots} reaskHours={slots.length ? meeting.volunteer_reask_hours : 24} className="col-span-2" />}
               <div className="col-span-2">
                 <SubmitButton>Save</SubmitButton>
               </div>

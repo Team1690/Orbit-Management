@@ -4,6 +4,7 @@ import { meetingWindow, rsvpsFor, type Meeting, type Rsvp } from "./meetings";
 import { getSettings } from "./settings";
 import { type Visit } from "./visits";
 
+// Who is expected: the meeting's audience plus its volunteers (volunteers.ts).
 // Attendance is derived, not stored: check-ins decide present/late/absent, an RSVP of
 // "late" or "no" sent before the start counts as advance notice, and a captain's
 // override wins over both.
@@ -64,6 +65,11 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
   }
 
   const rsvps = new Map((await rsvpsFor(ids)).map((r) => [`${r.meeting_id}:${r.user_id}`, r]));
+  const volunteered = new Set(
+    (await all<{ meeting_id: number; user_id: number }>(`SELECT meeting_id, user_id FROM volunteers WHERE meeting_id IN (${inList(ids.length)})`, ...ids)).map(
+      (v) => `${v.meeting_id}:${v.user_id}`,
+    ),
+  );
   const overrides = new Map(
     (await all<Override>(`SELECT * FROM attendance_overrides WHERE meeting_id IN (${inList(ids.length)})`, ...ids)).map((o) => [
       `${o.meeting_id}:${o.user_id}`,
@@ -77,8 +83,8 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
     const row = new Map<number, AttendanceEntry>();
     for (const member of members) {
       if (Date.parse(member.created_at) > end.getTime()) continue;
-      if (!inAudience(audience, { id: member.id, subteam: member.subteam, teams: memberTeams.get(member.id)! })) continue;
       const key = `${m.id}:${member.id}`;
+      if (!volunteered.has(key) && !inAudience(audience, { id: member.id, subteam: member.subteam, teams: memberTeams.get(member.id)! })) continue;
       const rsvp = rsvps.get(key) ?? null;
 
       let firstIn: number | null = null;

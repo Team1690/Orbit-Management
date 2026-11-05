@@ -18,6 +18,7 @@ import { tz } from "@/lib/settings";
 import { localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
 import { VisitRow } from "@/components/visit-row";
+import { TimeInput } from "@/components/time-input";
 
 export const metadata: Metadata = { title: "Member" };
 
@@ -34,7 +35,7 @@ function Detail({ label, value }: { label: string; value: string | number | null
 
 export default async function MemberPage({ params }: PageProps<"/members/[id]">) {
   const me = await requireStaff();
-  /** Meeting sheets and Settings are captain-only, so lead mentors get plain text there. */
+  /** Settings is captain-only, so lead mentors get plain text there. */
   const captain = me.role === "captain";
   const id = Number((await params).id);
   const m = await getMember(id);
@@ -180,15 +181,9 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                   return (
                     <li key={mt.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
                       <div className="min-w-0 flex-1">
-                        {captain ? (
-                          <Link href={`/meetings/${mt.id}`} className="text-sm font-medium hover:underline">
-                            {mt.title} · {fmtDate(mt.date)}
-                          </Link>
-                        ) : (
-                          <span className="text-sm font-medium">
-                            {mt.title} · {fmtDate(mt.date)}
-                          </span>
-                        )}
+                        <Link href={`/meetings/${mt.id}`} className="text-sm font-medium hover:underline">
+                          {mt.title} · {fmtDate(mt.date)}
+                        </Link>
                         <div className="truncate text-xs text-slate-500">
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
                           {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
@@ -238,11 +233,11 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                 </label>
                 <label className="text-xs">
                   <span className="label text-xs">In</span>
-                  <input type="time" name="in" required className="input py-1.5" />
+                  <TimeInput name="in" required step={1} />
                 </label>
                 <label className="text-xs">
                   <span className="label text-xs">Out</span>
-                  <input type="time" name="out" className="input py-1.5" />
+                  <TimeInput name="out" step={1} />
                 </label>
                 <SubmitButton className="btn btn-secondary btn-sm">Add</SubmitButton>
               </ActionForm>

@@ -2,17 +2,23 @@ import type { Audience } from "@/lib/audience";
 import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { CHIP_CLASS as chip } from "./ui";
 
-/** "Who needs to come": teams and/or individual students; nothing ticked means the whole team. */
+/**
+ * "Who needs to come": teams and/or individual students; nothing ticked means the whole team.
+ * `allowNone` (one-off meetings) adds "Only volunteers": nobody is expected but the volunteers.
+ */
 export function AudiencePicker({
   students,
   selected,
+  allowNone = false,
   className = "",
 }: {
   students: { id: number; name: string }[];
   selected: Audience | null;
+  allowNone?: boolean;
   className?: string;
 }) {
   const people = selected?.members.length ?? 0;
+  const none = !!selected && !selected.teams.length && !selected.members.length;
   return (
     <fieldset className={className}>
       <legend className="label">Who needs to come</legend>
@@ -26,6 +32,12 @@ export function AudiencePicker({
             {team}
           </label>
         ))}
+        {allowNone && (
+          <label className={chip} title="Nobody is expected except the students who volunteer.">
+            <input type="checkbox" name="aud_none" defaultChecked={none} className="size-4 accent-brand-600" />
+            Only volunteers
+          </label>
+        )}
       </div>
       <details className="mt-2" open={people > 0}>
         <summary className="cursor-pointer text-sm font-medium text-brand-700">Specific people{people ? ` (${people})` : ""}</summary>

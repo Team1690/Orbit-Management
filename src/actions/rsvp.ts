@@ -18,7 +18,10 @@ export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState
   const lateBy = int(fd, "late_by");
   if (!meeting || meeting.cancelled || !meeting.rsvp) return { error: "This meeting isn't taking RSVPs." };
   const me = await getMember(user.id);
-  if (!me || !inAudience(parseAudience(meeting.audience), me)) return { error: "This meeting isn't for you, so there's nothing to answer." };
+  const volunteered = !!(await one("SELECT 1 FROM volunteers WHERE meeting_id = ? AND user_id = ?", meeting.id, user.id));
+  if (!me || (!volunteered && !inAudience(parseAudience(meeting.audience), me))) {
+    return { error: "This meeting isn't for you, so there's nothing to answer." };
+  }
   const now = new Date();
   if (meetingWindow(meeting).start <= now) return { error: "This meeting has already started." };
   if (!["yes", "late", "no"].includes(response)) return { error: "Pick an answer." };

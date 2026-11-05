@@ -47,8 +47,7 @@ function NameList({ ids, members, detail }: { ids: number[]; members: Map<number
   );
 }
 
-/** `captain`: the link to the meeting's full sheet (Meetings is captain-only). */
-async function MeetingPanel({ meeting, members, captain }: { meeting: Meeting; members: Map<number, Member>; captain: boolean }) {
+async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: Map<number, Member> }) {
   const { start, end } = meetingWindow(meeting);
   const now = new Date();
   const started = now >= start;
@@ -87,11 +86,9 @@ async function MeetingPanel({ meeting, members, captain }: { meeting: Meeting; m
         </span>
       }
       actions={
-        captain && (
-          <Link href={`/meetings/${meeting.id}`} className="link text-sm">
-            Full sheet
-          </Link>
-        )
+        <Link href={`/meetings/${meeting.id}`} className="link text-sm">
+          Full sheet
+        </Link>
       }
     >
       {started && (
@@ -204,7 +201,7 @@ async function MeetingPanel({ meeting, members, captain }: { meeting: Meeting; m
 }
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  // Captains and lead mentors; lead mentors don't get links into Meetings or Settings.
+  // Captains and lead mentors; only captains get the setup banner (it points at Settings-level setup).
   const me = await requireStaff();
   const captain = me.role === "captain";
   await runTick();
@@ -316,16 +313,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           {panels.length > 0 ? (
-            panels.map((m) => <MeetingPanel key={m.id} meeting={m} members={memberMap} captain={captain} />)
+            panels.map((m) => <MeetingPanel key={m.id} meeting={m} members={memberMap} />)
           ) : (
             <Card title="Meetings">
               <Empty>
                 No upcoming meetings.{" "}
-                {captain && (
-                  <Link href="/meetings" className="link">
-                    Set up the weekly schedule
-                  </Link>
-                )}
+                <Link href="/meetings" className="link">
+                  Set up the weekly schedule
+                </Link>
               </Empty>
             </Card>
           )}
@@ -395,7 +390,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <ul className="mb-3 space-y-2">
                 {alerts.map((a) => (
                   <li key={a.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    {captain && a.meeting_id ? (
+                    {a.meeting_id ? (
                       <Link href={`/meetings/${a.meeting_id}`} className="text-sm font-semibold text-amber-950 hover:underline">
                         {a.title}
                       </Link>

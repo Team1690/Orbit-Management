@@ -38,14 +38,14 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-/** Settings and Meetings: captains only. */
+/** Settings: captains only. */
 export async function requireCaptain(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "captain") redirect("/");
   return user;
 }
 
-/** Captains and lead mentors: the Dashboard, Members (including editing them) and Hours. */
+/** Captains and lead mentors: the Dashboard, Members, Meetings and Hours, editing included (not Settings). */
 export function isStaff(user: Pick<SessionUser, "role" | "lead_mentor"> | null | undefined) {
   return !!user && (user.role === "captain" || (user.role === "mentor" && !!user.lead_mentor));
 }

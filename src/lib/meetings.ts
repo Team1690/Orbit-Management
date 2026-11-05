@@ -23,6 +23,10 @@ export type Meeting = {
   /** Hours before the start to notify everyone expected; null = no reminder. */
   reminder_hours: number | null;
   reminder_sent_at: string | null;
+  /** One-off meetings with volunteer slots: ask again this many hours after the first ask; null = once. */
+  volunteer_reask_hours: number | null;
+  volunteer_ask_at: string | null;
+  volunteer_reask_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";

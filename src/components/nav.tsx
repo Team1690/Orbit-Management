@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 import {
   CalendarIcon,
-  ClockIcon,
   GridIcon,
   HomeIcon,
   LogoutIcon,
@@ -21,34 +20,24 @@ type NavLink = { href: string; label: string; icon: ComponentType<SVGProps<SVGSV
 
 const MENTORS_LINK: NavLink = { href: "/mentors", label: "Mentors", icon: MentorIcon };
 
-const MEMBER_LINKS: NavLink[] = [
-  { href: "/", label: "Home", icon: HomeIcon },
-  { href: "/scan", label: "Scan", icon: ScanIcon },
-  MENTORS_LINK,
-  { href: "/profile", label: "Profile", icon: UserIcon },
-];
+// Scan isn't a tab: it's the home screen's Check in card and the icon in the top bar.
+const MEMBER_LINKS: NavLink[] = [{ href: "/", label: "Home", icon: HomeIcon }, MENTORS_LINK, { href: "/profile", label: "Profile", icon: UserIcon }];
 
-/** Subteam leads also get their subteam's page, after Scan. */
-const SUBTEAM_LEAD_LINKS: NavLink[] = [...MEMBER_LINKS.slice(0, 2), { href: "/subteam", label: "Subteam", icon: UsersIcon }, ...MEMBER_LINKS.slice(2)];
+/** Subteam leads also get their subteam's page, after Home. */
+const SUBTEAM_LEAD_LINKS: NavLink[] = [MEMBER_LINKS[0], { href: "/subteam", label: "Subteam", icon: UsersIcon }, ...MEMBER_LINKS.slice(1)];
 
 const MENTOR_LINKS: NavLink[] = [{ href: "/", label: "Home", icon: HomeIcon }, MENTORS_LINK, { href: "/profile", label: "Profile", icon: UserIcon }];
 
-/** Lead mentors: the captains' pages but Meetings and Settings, plus Home for their one-tap check-in. */
-const LEAD_MENTOR_LINKS: NavLink[] = [
-  { href: "/", label: "Home", icon: HomeIcon },
-  { href: "/dashboard", label: "Dashboard", icon: GridIcon },
-  { href: "/members", label: "Members", icon: UsersIcon },
-  { href: "/hours", label: "Hours", icon: ClockIcon },
-  MENTORS_LINK,
-];
-
+// Hours isn't a tab: the Members page sorts by hours and links to the full hours report.
 const CAPTAIN_LINKS: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: GridIcon },
   { href: "/members", label: "Members", icon: UsersIcon },
   { href: "/meetings", label: "Meetings", icon: CalendarIcon },
-  { href: "/hours", label: "Hours", icon: ClockIcon },
   MENTORS_LINK,
 ];
+
+/** Lead mentors: the captains' pages but Settings, plus Home for their one-tap check-in. */
+const LEAD_MENTOR_LINKS: NavLink[] = [{ href: "/", label: "Home", icon: HomeIcon }, ...CAPTAIN_LINKS];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);

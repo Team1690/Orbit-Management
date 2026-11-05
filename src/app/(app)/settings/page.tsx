@@ -10,6 +10,7 @@ import { listSeasons, today } from "@/lib/periods";
 import { vapidPublicKey } from "@/lib/push";
 import { appOrigin } from "@/lib/qr";
 import { getSettings } from "@/lib/settings";
+import { TimeInput } from "@/components/time-input";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -52,7 +53,7 @@ export default async function SettingsPage() {
             <input name="rsvp_close_hours" type="number" min={0} max={335} defaultValue={s.rsvp_close_hours} className="input" />
           </Field>
           <Field label="Automatic check-out time" hint="Anyone still checked in is checked out at this time and credited until their meeting ended.">
-            <input name="auto_checkout_time" type="time" defaultValue={s.auto_checkout_time} className="input" />
+            <TimeInput name="auto_checkout_time" defaultValue={s.auto_checkout_time} />
           </Field>
           <Field label="Create meetings (days ahead)">
             <input name="schedule_days_ahead" type="number" min={7} max={90} defaultValue={s.schedule_days_ahead} className="input" />

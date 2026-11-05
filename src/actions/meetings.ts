@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireCaptain } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
 import { DATE_RE, TIME_RE, bool, int, optStr, str, type FormState } from "@/lib/forms";
 import { LATE_BY_OPTIONS } from "@/lib/late-by";
 import { readAudience } from "@/lib/audience";
-import { ensureScheduledMeetings, setRsvp, type RsvpResponse } from "@/lib/meetings";
+import { ensureScheduledMeetings, getMeeting, setRsvp, type RsvpResponse } from "@/lib/meetings";
 import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { today } from "@/lib/periods";
 import { sendRsvpNotifications } from "@/lib/rsvp-reminders";
+import { sendVolunteerAsks } from "@/lib/volunteers";
 
 /** The teams a meeting can be limited to. */
 const AUDIENCE_TEAMS = [...SUBTEAMS, ...EXTRA_TEAMS];
@@ -22,6 +23,40 @@ function readReminder(fd: FormData) {
   return hours !== null && hours >= 1 && hours <= 168 ? hours : "invalid";
 }
 const REMINDER_ERROR = "Set the reminder 1–168 hours before the meeting, or leave it empty.";
+
+/**
+ * A one-off meeting's "Ask for volunteers" rows (how many, from which team; "" = anyone), merged by
+ * team, and how many hours after the first ask to ask again (empty = once).
+ */
+function readVolunteerRequest(fd: FormData, audience: string | null) {
+  const counts = fd.getAll("vol_count").map(String);
+  const teams = fd.getAll("vol_team").map(String);
+  const wanted = new Map<string, number>();
+  for (const [i, c] of counts.entries()) {
+    if (!c.trim()) continue;
+    const n = Number(c);
+    const team = teams[i] ?? "";
+    if (!Number.isInteger(n) || n < 1 || n > 100) return { error: "Ask for 1–100 volunteers per row, or leave the row empty." } as const;
+    if (team && !AUDIENCE_TEAMS.includes(team)) return { error: "Pick a team for each volunteer row." } as const;
+    wanted.set(team, (wanted.get(team) ?? 0) + n);
+  }
+  const slots = [...wanted].map(([team, n]) => ({ team: team || null, wanted: n }));
+  // With the whole team expected there's nobody left to volunteer.
+  if (slots.length && audience === null) {
+    return { error: "Everyone is already expected at this meeting, so nobody could volunteer. Under \"Who needs to come\", pick teams or people, or \"Only volunteers\"." } as const;
+  }
+  let reaskHours: number | null = null;
+  if (str(fd, "vol_reask_hours")) {
+    reaskHours = int(fd, "vol_reask_hours");
+    if (reaskHours === null || reaskHours < 1 || reaskHours > 336) return { error: "Ask again 1–336 hours after creating the meeting, or leave it empty." } as const;
+  }
+  return { slots, reaskHours: slots.length ? reaskHours : null };
+}
+
+async function saveVolunteerSlots(meetingId: number, slots: { team: string | null; wanted: number }[]) {
+  await run("DELETE FROM volunteer_slots WHERE meeting_id = ?", meetingId);
+  for (const s of slots) await run("INSERT INTO volunteer_slots (meeting_id, team, wanted) VALUES (?, ?, ?)", meetingId, s.team, s.wanted);
+}
 
 function readMeeting(fd: FormData) {
   const title = str(fd, "title") || "Team meeting";
@@ -47,31 +82,52 @@ function readMeeting(fd: FormData) {
 }
 
 export async function createMeeting(_: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
-  const { id } = await run(
-    "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience, reminder_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
-    m.title,
-    m.date,
-    m.start,
-    m.end,
-    m.mandatory,
-    m.rsvp,
-    m.notes,
-    m.audience,
-    m.reminderHours,
-  );
-  // One-off meetings take answers right away: send "Will you come?" now rather than on the next tick.
+  const v = readVolunteerRequest(fd, m.audience);
+  if ("error" in v) return { error: v.error };
+  const id = await tx(async () => {
+    const { id } = await run(
+      "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, notes, audience, reminder_hours, volunteer_reask_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      m.title,
+      m.date,
+      m.start,
+      m.end,
+      m.mandatory,
+      m.rsvp,
+      m.notes,
+      m.audience,
+      m.reminderHours,
+      v.reaskHours,
+    );
+    await saveVolunteerSlots(id, v.slots);
+    return id;
+  });
+  // One-off meetings take answers right away: send "Will you come?" (and the volunteer request) now
+  // rather than on the next tick.
   await sendRsvpNotifications().catch((err) => console.error("[orbit] RSVP notifications failed", err));
+  await sendVolunteerAsks().catch((err) => console.error("[orbit] volunteer requests failed", err));
   revalidatePath("/", "layout");
   redirect(`/meetings/${id}`);
 }
 
 export async function updateMeeting(id: number, _: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const m = readMeeting(fd);
   if ("error" in m) return { error: m.error };
+  const current = await getMeeting(id);
+  if (!current) return { error: "Meeting not found." };
+  // Volunteers are for one-off meetings only.
+  const oneOff = current.schedule_id === null;
+  const v = oneOff ? readVolunteerRequest(fd, m.audience) : null;
+  if (v && "error" in v) return { error: v.error };
+  if (v) {
+    await tx(async () => {
+      await saveVolunteerSlots(id, v.slots);
+      await run("UPDATE meetings SET volunteer_reask_hours = ? WHERE id = ?", v.reaskHours, id);
+    });
+  }
   await run(
     `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, notes = ?, audience = ?,
        -- A new reminder time or a moved meeting gets its reminder again.
@@ -92,18 +148,20 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     m.reminderHours,
     id,
   );
+  // Volunteer slots added to a meeting that hasn't asked yet go out now.
+  if (v?.slots.length) await sendVolunteerAsks().catch((err) => console.error("[orbit] volunteer requests failed", err));
   revalidatePath("/", "layout");
   return { message: "Saved." };
 }
 
 export async function setCancelled(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   await run("UPDATE meetings SET cancelled = ? WHERE id = ?", fd.get("cancelled") === "1", Number(fd.get("id")));
   revalidatePath("/", "layout");
 }
 
 export async function deleteMeeting(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   await run("DELETE FROM meetings WHERE id = ?", Number(fd.get("id")));
   revalidatePath("/", "layout");
   redirect("/meetings");
@@ -111,7 +169,7 @@ export async function deleteMeeting(fd: FormData) {
 
 /** Sets a captain's attendance override for one member, or clears it ("auto"). */
 export async function setAttendance(fd: FormData) {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const meetingId = Number(fd.get("meeting_id"));
   const userId = Number(fd.get("user_id"));
   const status = str(fd, "status");
@@ -139,7 +197,7 @@ export async function setAttendance(fd: FormData) {
  * `answer` is "none", "yes", "no" or "late:<minutes>"; the member's own note is kept.
  */
 export async function setMemberRsvp(fd: FormData) {
-  const me = await requireCaptain();
+  const me = await requireStaff();
   const meetingId = Number(fd.get("meeting_id"));
   const userId = Number(fd.get("user_id"));
   const [response, minutes] = str(fd, "answer").split(":");
@@ -156,7 +214,7 @@ export async function setMemberRsvp(fd: FormData) {
 }
 
 export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const weekday = Number(fd.get("weekday"));
   const start = str(fd, "start_time");
   const end = str(fd, "end_time");
@@ -184,7 +242,7 @@ export async function addScheduleRule(_: FormState, fd: FormData): Promise<FormS
 
 /** Changes who a weekly slot is for, including its meetings from today on. */
 export async function setScheduleAudience(id: number, _: FormState, fd: FormData): Promise<FormState> {
-  await requireCaptain();
+  await requireStaff();
   const audience = readAudience(fd, AUDIENCE_TEAMS);
   await tx(async () => {
     await run("UPDATE schedule SET audience = ? WHERE id = ?", audience, id);
@@ -196,7 +254,7 @@ export async function setScheduleAudience(id: number, _: FormState, fd: FormData
 
 /** Removes a weekly slot and its future meetings that nobody has answered yet. Past meetings stay. */
 export async function deleteScheduleRule(fd: FormData) {
-  await requireCaptain();
+  await requireStaff();
   const id = Number(fd.get("id"));
   await tx(async () => {
     await run(
