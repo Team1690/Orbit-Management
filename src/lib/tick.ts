@@ -4,6 +4,7 @@ import { ensureScheduledMeetings, meetingWindow, meetingsOn } from "./meetings";
 import { sendMeetingReminders, sendRsvpNotifications } from "./rsvp-reminders";
 import { sendVolunteerAsks } from "./volunteers";
 import { sendOpenMeetingFyi } from "./open-meetings";
+import { sendCheckoutReminders } from "./checkout-reminders";
 import { getSettings } from "./settings";
 import { sendMeetingSummaries } from "./slack";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
@@ -48,6 +49,7 @@ export async function runTick(force = false) {
   await sendMeetingReminders(new Date(now));
   await checkMissingAlerts(new Date(now));
   await sendMeetingSummaries(new Date(now));
+  await sendCheckoutReminders(new Date(now));
   await autoCheckout(new Date(now));
   await run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
 }

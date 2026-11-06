@@ -252,6 +252,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE meetings ADD COLUMN open_to_all INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE meetings ADD COLUMN fyi_sent_at TEXT;
   `,
+
+  // 11: when the "time to check out" reminder went out after a meeting ended.
+  `
+  ALTER TABLE meetings ADD COLUMN checkout_reminder_at TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

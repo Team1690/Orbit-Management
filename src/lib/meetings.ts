@@ -30,6 +30,7 @@ export type Meeting = {
   /** Open: everyone sees it and gets an FYI; closed (0): only the people invited see it. */
   open_to_all: number;
   fyi_sent_at: string | null;
+  checkout_reminder_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";

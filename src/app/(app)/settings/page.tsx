@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { addSeason, deleteSeason, regenerateDisplayKey, saveSettings, saveSlack, sendSlackTest, updateSeason } from "@/actions/settings";
+import { addSeason, deleteSeason, regenerateDisplayKey, saveSettings, saveSlack, sendSlackTest, updateSeason, wipeHistory } from "@/actions/settings";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/client";
 import { PushToggle } from "@/components/push-toggle";
 import { Badge, Card, Field, PageHeader } from "@/components/ui";
@@ -54,6 +54,12 @@ export default async function SettingsPage() {
           </Field>
           <Field label="Automatic check-out time" hint="Anyone still checked in is checked out at this time and credited until their meeting ended.">
             <TimeInput name="auto_checkout_time" defaultValue={s.auto_checkout_time} />
+          </Field>
+          <Field
+            label="Remind to check out (minutes after the meeting ends)"
+            hint="Everyone still checked in gets a notification this long after each meeting ends. 0 turns it off."
+          >
+            <input name="checkout_reminder_min" type="number" min={0} max={240} defaultValue={s.checkout_reminder_min} className="input" />
           </Field>
           <Field label="Create meetings (days ahead)">
             <input name="schedule_days_ahead" type="number" min={7} max={90} defaultValue={s.schedule_days_ahead} className="input" />
@@ -166,6 +172,26 @@ export default async function SettingsPage() {
             Make a new link
           </ConfirmButton>
         </form>
+      </Card>
+
+      <Card title="Clear history" className="border-rose-200">
+        <p className="text-sm text-slate-600">
+          Deletes every meeting that has already ended, with its RSVPs and attendance, and every finished check-in, which resets
+          everyone&apos;s hours. Members and their details, captain notes, settings, seasons, the weekly schedule, upcoming meetings
+          and anyone checked in right now are kept. This can&apos;t be undone, so download the{" "}
+          <a href="/hours" className="link">
+            hours CSV
+          </a>{" "}
+          first if you want a copy.
+        </p>
+        <ActionForm action={wipeHistory} className="mt-4 flex flex-wrap items-end gap-2">
+          <Field label="Your password" className="min-w-0 flex-1 sm:max-w-xs">
+            <input name="password" type="password" autoComplete="current-password" required className="input" />
+          </Field>
+          <ConfirmButton message="Delete all past meetings, RSVPs, attendance and hours? This can't be undone." className="btn btn-danger">
+            Clear history
+          </ConfirmButton>
+        </ActionForm>
       </Card>
     </div>
   );

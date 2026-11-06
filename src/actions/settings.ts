@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCaptain } from "@/lib/auth";
-import { run } from "@/lib/db";
+import { all, one, run, tx } from "@/lib/db";
 import { DATE_RE, TIME_RE, int, str, type FormState } from "@/lib/forms";
-import { randomToken } from "@/lib/password";
-import { resyncSchedule } from "@/lib/meetings";
+import { randomToken, verifyPassword } from "@/lib/password";
+import { meetingWindow, resyncSchedule, type Meeting } from "@/lib/meetings";
+import { today } from "@/lib/periods";
 import { getSettings, setSetting } from "@/lib/settings";
 import { isSlackWebhook, postToSlack } from "@/lib/slack";
 import { isValidTimeZone } from "@/lib/timeutil";
@@ -19,6 +20,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   const remindHours = int(fd, "rsvp_reminder_hours");
   const closeHours = int(fd, "rsvp_close_hours");
   const autoOut = str(fd, "auto_checkout_time");
+  const outReminder = int(fd, "checkout_reminder_min");
   const daysAhead = int(fd, "schedule_days_ahead");
   const alertMin = int(fd, "missing_alert_min");
   const rotate = int(fd, "qr_rotate_min");
@@ -40,6 +42,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
     return { error: "Send the reminder before answers close: more hours before the meeting." };
   }
   if (!TIME_RE.test(autoOut)) return { error: "Auto check-out time must look like 23:00." };
+  if (outReminder === null || outReminder < 0 || outReminder > 240) return { error: "The check-out reminder must be 0–240 minutes after the meeting (0 turns it off)." };
   if (daysAhead === null || daysAhead < 7 || daysAhead > 90) return { error: "Plan meetings 7–90 days ahead." };
   if (rotate === null || rotate < 1 || rotate > 60) return { error: "The QR code must change every 1–60 minutes." };
   if (flagAbsences === null || flagAbsences < 0 || flagAbsences > 30) return { error: "Absences to flag must be 0–30 (0 turns it off)." };
@@ -53,6 +56,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   await setSetting("rsvp_reminder_hours", remindHours);
   await setSetting("rsvp_close_hours", closeHours);
   await setSetting("auto_checkout_time", autoOut);
+  await setSetting("checkout_reminder_min", outReminder);
   await setSetting("schedule_days_ahead", daysAhead);
   await setSetting("qr_rotate_min", rotate);
   await setSetting("flag_absences", flagAbsences);
@@ -130,4 +134,34 @@ export async function regenerateDisplayKey() {
   await requireCaptain();
   await setSetting("display_key", randomToken());
   revalidatePath("/settings");
+}
+
+/**
+ * Clears the team's history: every meeting that has ended (with its RSVPs, attendance corrections and
+ * volunteers, which go with it), every finished check-in (all hours), and captain alerts. Members and
+ * their details and notes, settings, seasons, the weekly schedule, upcoming meetings and anyone checked
+ * in right now are kept. Needs the captain's own password.
+ */
+export async function wipeHistory(_: FormState, fd: FormData): Promise<FormState> {
+  const me = await requireCaptain();
+  const row = await one<{ password_hash: string | null }>("SELECT password_hash FROM users WHERE id = ?", me.id);
+  if (!verifyPassword(str(fd, "password"), row?.password_hash)) return { error: "That password isn't right. Nothing was deleted." };
+
+  const now = new Date();
+  const ended = (await all<Meeting>("SELECT * FROM meetings WHERE date <= ?", today())).filter((m) => meetingWindow(m).end <= now).map((m) => m.id);
+  const counts = await tx(async () => {
+    let meetings = 0;
+    for (let i = 0; i < ended.length; i += 500) {
+      const ids = ended.slice(i, i + 500);
+      meetings += (await run(`DELETE FROM meetings WHERE id IN (${ids.map(() => "?").join(",")})`, ...ids)).changes;
+    }
+    const visits = (await run("DELETE FROM visits WHERE check_out IS NOT NULL")).changes;
+    await run("DELETE FROM alerts");
+    return { meetings, visits };
+  });
+  console.info(`[orbit] history cleared by user ${me.id}: ${counts.meetings} meetings, ${counts.visits} check-ins`);
+  revalidatePath("/", "layout");
+  return {
+    message: `History cleared: ${counts.meetings} past meetings (with their RSVPs and attendance) and ${counts.visits} check-ins were deleted. Members, settings and upcoming meetings were kept.`,
+  };
 }
