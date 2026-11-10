@@ -25,11 +25,11 @@ export async function GET(request: NextRequest) {
       (!shirts.length || shirts.includes(m.shirt_size ?? NOT_SET)),
   );
 
-  const lines = [["Name", "Phone", "Grade", "School subjects", "Parent name", "Parent phone", "Shirt size"].map(csvCell).join(",")];
+  const lines = [["Name", "Phone", "Grade", "Subteam", "School subjects", "Parent name", "Parent phone", "Shirt size"].map(csvCell).join(",")];
   for (const m of members) {
     const subjects = [m.subject_1, m.subject_2].filter(Boolean).join(", ");
     lines.push(
-      [csvCell(m.name), csvPhone(m.phone), csvCell(m.grade), csvCell(subjects), csvCell(m.parent_name), csvPhone(m.parent_phone), csvCell(m.shirt_size)].join(","),
+      [csvCell(m.name), csvPhone(m.phone), csvCell(m.grade), csvCell(m.subteam), csvCell(subjects), csvCell(m.parent_name), csvPhone(m.parent_phone), csvCell(m.shirt_size)].join(","),
     );
   }
   return csvResponse(`members-${today()}.csv`, lines);

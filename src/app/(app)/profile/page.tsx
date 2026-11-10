@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { changePassword } from "@/actions/auth";
 import { updateMyProfile } from "@/actions/members";
 import { setStaffAlerts } from "@/actions/push";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { addAbsence, deleteAbsence } from "@/actions/absences";
+import { ActionForm, ConfirmButton, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Field } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { SubjectInputs } from "@/components/member-fields";
@@ -10,6 +11,9 @@ import { PushToggle } from "@/components/push-toggle";
 import { SHIRT_SIZES, getMember, hasRoleBadge, roleLabel } from "@/lib/members";
 import { vapidPublicKey } from "@/lib/push";
 import { getSettings } from "@/lib/settings";
+import { upcomingAbsences } from "@/lib/absences";
+import { fmtDate } from "@/lib/format";
+import { today } from "@/lib/periods";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -17,6 +21,8 @@ export default async function ProfilePage() {
   const me = await requireUser();
   const m = (await getMember(me.id))!;
   const { missing_alert_min } = await getSettings();
+  const t = today();
+  const absences = m.role === "mentor" ? [] : await upcomingAbsences(me.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -26,7 +32,9 @@ export default async function ProfilePage() {
           <h1 className="text-2xl font-bold tracking-tight">{m.name}</h1>
           <div className="mt-1 flex flex-wrap gap-1.5 text-sm text-slate-500">
             {hasRoleBadge(m) && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
-            {m.subteam && <Badge>{m.subteam}</Badge>}
+            {m.subteams.map((st) => (
+              <Badge key={st}>{st}</Badge>
+            ))}
             {m.teams.map((t) => (
               <Badge key={t} tone="gray">
                 {t}
@@ -99,6 +107,54 @@ export default async function ProfilePage() {
             </SubmitButton>
           </form>
         </Card>
+      )}
+
+      {m.role !== "mentor" && (
+        <div id="absences" className="scroll-mt-20">
+          <Card title="Planned absences">
+            <p className="mb-3 text-sm text-slate-600">
+              Away for a few days? Add the dates and a short reason. Every meeting in between is answered &ldquo;Can&apos;t come&rdquo; for
+              you with that reason, including meetings added later. You can still change a single answer yourself.
+            </p>
+            {absences.length > 0 && (
+              <ul className="mb-4 divide-y divide-slate-100 rounded-xl border border-slate-200">
+                {absences.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <span className="font-medium">
+                        {a.start_date === a.end_date ? fmtDate(a.start_date) : `${fmtDate(a.start_date)} – ${fmtDate(a.end_date)}`}
+                      </span>
+                      <span className="block truncate text-slate-500">{a.reason}</span>
+                    </span>
+                    <form action={deleteAbsence}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <ConfirmButton
+                        message="Remove this absence? Meetings it answered for you go back to no answer."
+                        className="btn btn-ghost btn-sm text-rose-600"
+                      >
+                        Remove
+                      </ConfirmButton>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <ActionForm action={addAbsence} className="grid grid-cols-2 gap-3">
+              <Field label="First day">
+                <input name="start_date" type="date" min={t} defaultValue={t} required className="input" />
+              </Field>
+              <Field label="Last day">
+                <input name="end_date" type="date" min={t} defaultValue={t} required className="input" />
+              </Field>
+              <Field label="Reason" className="col-span-2">
+                <input name="reason" maxLength={200} required placeholder="e.g. Class trip to the north" className="input" />
+              </Field>
+              <div className="col-span-2">
+                <SubmitButton pendingText="Saving…">Add absence</SubmitButton>
+              </div>
+            </ActionForm>
+          </Card>
+        </div>
       )}
 
       <Card title="Change password">

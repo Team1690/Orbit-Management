@@ -28,6 +28,8 @@ export type Member = {
   subject_2: string | null;
   /** Teams on top of the main subteam, e.g. ["Strategy", "Drive team"]. */
   teams: string[];
+  /** Main subteams: a mentor can have several; a student has at most one (their `subteam`). */
+  subteams: string[];
   has_password: number;
   invite_expires_at: string | null;
   created_at: string;
@@ -35,7 +37,8 @@ export type Member = {
 
 const MEMBER_COLUMNS = `id, name, email, role, active, lead_mentor, subteam_lead, staff_alerts, phone, grade, subteam, subject_1, subject_2, birthday, joined_year,
   shirt_size, parent_name, parent_phone, medical_notes, (password_hash IS NOT NULL)::int AS has_password, invite_expires_at, created_at,
-  (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams`;
+  (SELECT string_agg(team, '|') FROM member_teams t WHERE t.user_id = users.id) AS teams,
+  (SELECT string_agg(subteam, '|') FROM mentor_subteams ms WHERE ms.user_id = users.id) AS mentor_subteams`;
 
 /** Every member belongs to one main subteam… */
 export const SUBTEAMS = ["CAD", "Mechanical", "Robot software", "Applications"];
@@ -92,10 +95,24 @@ export function hasRoleBadge(m: RoleFlags) {
   return m.role !== "member" || !!m.subteam_lead;
 }
 
-type MemberRow = Omit<Member, "teams"> & { teams: string | null };
+type MemberRow = Omit<Member, "teams" | "subteams"> & { teams: string | null; mentor_subteams: string | null };
 
-function withTeams(row: MemberRow): Member {
-  return { ...row, teams: row.teams ? row.teams.split("|").sort((a, b) => EXTRA_TEAMS.indexOf(a) - EXTRA_TEAMS.indexOf(b)) : [] };
+function withTeams({ mentor_subteams, ...row }: MemberRow): Member {
+  const subteams =
+    row.role === "mentor" && mentor_subteams
+      ? mentor_subteams.split("|").sort((a, b) => SUBTEAMS.indexOf(a) - SUBTEAMS.indexOf(b))
+      : row.subteam
+        ? [row.subteam]
+        : [];
+  return { ...row, subteams, teams: row.teams ? row.teams.split("|").sort((a, b) => EXTRA_TEAMS.indexOf(a) - EXTRA_TEAMS.indexOf(b)) : [] };
+}
+
+/** A mentor's main subteams (anyone else gets none here: students keep theirs in users.subteam). */
+export async function setMentorSubteams(userId: number, subteams: string[]) {
+  await run("DELETE FROM mentor_subteams WHERE user_id = ?", userId);
+  for (const s of new Set(subteams.filter((t) => SUBTEAMS.includes(t)))) {
+    await run("INSERT INTO mentor_subteams (user_id, subteam) VALUES (?, ?)", userId, s);
+  }
 }
 
 export async function listMembers(opts: { includeInactive?: boolean } = {}) {

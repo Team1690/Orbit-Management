@@ -82,3 +82,112 @@ body {
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
+
+/*
+ * Dark mode: <html class="dark">, set before the page draws (see the script in app/layout.tsx) from
+ * the toggle in the top bar, or the phone's own setting until someone uses the toggle. Instead of a
+ * dark: variant on every class, the palette is remapped: the slate scale flips (light backgrounds
+ * become dark, dark text becomes light), the pale tints behind badges and banners turn deep, and the
+ * strong text colours on them lighten. Kept outside @layer so it wins over the utilities.
+ */
+html.dark {
+  color-scheme: dark;
+  --color-slate-50: #0b1120;
+  --color-slate-100: #1a2436;
+  --color-slate-200: #263247;
+  --color-slate-300: #3a475d;
+  --color-slate-400: #6b7a90;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #b4c0d0;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #f1f5f9;
+  --color-slate-950: #f8fafc;
+  --color-brand-50: #16224a;
+  --color-brand-100: #1c2d63;
+  --color-brand-200: #24397a;
+  --color-emerald-50: #0b2a20;
+  --color-emerald-100: #0f3a2b;
+  --color-emerald-200: #14533d;
+  --color-amber-50: #2e2108;
+  --color-amber-100: #3d2c0b;
+  --color-amber-200: #5c4310;
+  --color-rose-50: #2f0f17;
+  --color-rose-100: #42141f;
+  --color-rose-200: #64202f;
+  --color-violet-50: #241542;
+  --color-violet-200: #3f2a73;
+}
+/* Surfaces that are white in light mode. The check-in QR keeps its white box so it still scans. */
+html.dark .bg-white:not(.keep-light),
+html.dark .card,
+html.dark .btn-secondary {
+  background-color: #111a2c;
+}
+html.dark .input {
+  background-color: #0b1120;
+}
+html.dark .bg-white\/90 {
+  background-color: rgb(17 26 44 / 0.9);
+}
+html.dark .bg-white\/95 {
+  background-color: rgb(17 26 44 / 0.95);
+}
+/* Strong accent text, readable on the dark surfaces and tints. */
+html.dark .text-brand-600,
+html.dark .text-brand-700,
+html.dark .text-brand-800,
+html.dark .text-brand-900,
+html.dark .link {
+  color: #93b4fd;
+}
+html.dark .text-emerald-600,
+html.dark .text-emerald-700 {
+  color: #34d399;
+}
+html.dark .text-emerald-800,
+html.dark .text-emerald-900 {
+  color: #6ee7b7;
+}
+html.dark .text-amber-600,
+html.dark .text-amber-700 {
+  color: #fbbf24;
+}
+html.dark .text-amber-800,
+html.dark .text-amber-900,
+html.dark .text-amber-950 {
+  color: #fcd34d;
+}
+html.dark .text-rose-600,
+html.dark .text-rose-700 {
+  color: #fb7185;
+}
+html.dark .text-rose-800,
+html.dark .text-rose-900 {
+  color: #fda4af;
+}
+html.dark .text-violet-600,
+html.dark .text-violet-700 {
+  color: #c4b5fd;
+}
+/* Screens that look the same in both modes (the projected check-in code): the light palette again. */
+html.dark .force-light {
+  color-scheme: light;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bfd3fe;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+}

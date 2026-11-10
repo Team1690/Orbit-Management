@@ -55,7 +55,7 @@ export function QrDisplay({
   const unreachable = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-gradient-to-b from-brand-900 to-brand-700 p-6 text-white">
+    <main className="force-light flex min-h-dvh flex-col items-center justify-center gap-4 bg-gradient-to-b from-brand-900 to-brand-700 p-6 text-white">
       <div className="flex items-center gap-3">
         <OrbitLogo width={44} height={44} />
         <span className="text-2xl font-bold tracking-tight">{teamName}</span>
@@ -65,7 +65,7 @@ export function QrDisplay({
         {meetingLabel && <p className="mt-2 text-lg text-brand-100">{meetingLabel}</p>}
       </div>
 
-      <div className="rounded-3xl bg-white p-5 shadow-2xl">
+      <div className="keep-light rounded-3xl bg-white p-5 shadow-2xl">
         {data ? (
           <div className="size-[min(52vh,80vw,620px)] [&>svg]:size-full" dangerouslySetInnerHTML={{ __html: data.svg }} />
         ) : (

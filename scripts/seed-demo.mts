@@ -131,6 +131,10 @@ await db.transaction(async (q) => {
     mentorIds.push(await insertMentor(name, email, pw, subteam, `05${Math.floor(rand() * 10)}-${String(Math.floor(rand() * 9_000_000) + 1_000_000)}`, 2020, createdAt));
   }
 
+  // Mentors can be in several subteams: Ronit also mentors Applications.
+  await q.query("INSERT INTO mentor_subteams (user_id, subteam) SELECT id, subteam FROM users WHERE role = 'mentor' AND subteam IS NOT NULL");
+  await q.query("INSERT INTO mentor_subteams (user_id, subteam) SELECT id, 'Applications' FROM users WHERE email = 'mentor@demo.orbit'");
+
   // Yossi is a lead mentor: the captains' Dashboard, Members and Hours, without Settings or Meetings.
   await q.query("UPDATE users SET lead_mentor = 1 WHERE email = 'leadmentor@demo.orbit'");
 

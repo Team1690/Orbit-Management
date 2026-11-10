@@ -25,7 +25,8 @@ export function nameList(names: string[]) {
 export async function checkMissingAlerts(now = new Date()) {
   const { missing_alert_min, timezone } = await getSettings();
   for (const m of await meetingsOn(localParts(now, timezone).date)) {
-    if (!m.mandatory || m.missing_alert_at) continue;
+    // Meetings without check-in have nobody to miss.
+    if (!m.mandatory || m.no_checkin || m.missing_alert_at) continue;
     const { start, end } = meetingWindow(m);
     if (now.getTime() < start.getTime() + missing_alert_min * 60_000 || now >= end) continue;
     // Claim the meeting first so two ticks can't both send.

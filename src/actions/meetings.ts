@@ -13,6 +13,7 @@ import { today } from "@/lib/periods";
 import { sendRsvpNotifications } from "@/lib/rsvp-reminders";
 import { sendVolunteerAsks } from "@/lib/volunteers";
 import { sendOpenMeetingFyi } from "@/lib/open-meetings";
+import { applyAbsencesToNewMeetings } from "@/lib/absences";
 
 /** The teams a meeting can be limited to. */
 const AUDIENCE_TEAMS = [...SUBTEAMS, ...EXTRA_TEAMS];
@@ -69,6 +70,9 @@ function readMeeting(fd: FormData) {
   if (end <= start) return { error: "The meeting must end after it starts." } as const;
   const reminderHours = readReminder(fd);
   if (reminderHours === "invalid") return { error: REMINDER_ERROR } as const;
+  if (bool(fd, "no_checkin") && !bool(fd, "rsvp")) {
+    return { error: "A meeting without check-in needs RSVPs: the answers decide who was there." } as const;
+  }
   return {
     title,
     date,
@@ -77,6 +81,7 @@ function readMeeting(fd: FormData) {
     mandatory: bool(fd, "mandatory"),
     rsvp: bool(fd, "rsvp"),
     openToAll: bool(fd, "open_to_all"),
+    noCheckin: bool(fd, "no_checkin"),
     notes: optStr(fd, "notes"),
     audience: readAudience(fd, AUDIENCE_TEAMS),
     reminderHours,
@@ -91,7 +96,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
   if ("error" in v) return { error: v.error };
   const id = await tx(async () => {
     const { id } = await run(
-      "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, open_to_all, notes, audience, reminder_hours, volunteer_reask_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      "INSERT INTO meetings (title, date, start_time, end_time, mandatory, rsvp, open_to_all, no_checkin, notes, audience, reminder_hours, volunteer_reask_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
       m.title,
       m.date,
       m.start,
@@ -99,6 +104,7 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
       m.mandatory,
       m.rsvp,
       m.openToAll,
+      m.noCheckin,
       m.notes,
       m.audience,
       m.reminderHours,
@@ -107,8 +113,9 @@ export async function createMeeting(_: FormState, fd: FormData): Promise<FormSta
     await saveVolunteerSlots(id, v.slots);
     return id;
   });
-  // One-off meetings take answers right away: send "Will you come?" (and the volunteer request) now
-  // rather than on the next tick.
+  // One-off meetings take answers right away: answer for anyone on a planned absence, then send
+  // "Will you come?" (and the volunteer request) now rather than on the next tick.
+  await applyAbsencesToNewMeetings().catch((err) => console.error("[orbit] planned absences failed", err));
   await sendRsvpNotifications().catch((err) => console.error("[orbit] RSVP notifications failed", err));
   await sendVolunteerAsks().catch((err) => console.error("[orbit] volunteer requests failed", err));
   await sendOpenMeetingFyi().catch((err) => console.error("[orbit] open meeting FYI failed", err));
@@ -133,7 +140,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     });
   }
   await run(
-    `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, open_to_all = ?, notes = ?, audience = ?,
+    `UPDATE meetings SET title = ?, date = ?, start_time = ?, end_time = ?, mandatory = ?, rsvp = ?, open_to_all = ?, no_checkin = ?, notes = ?, audience = ?,
        -- A new reminder time or a moved meeting gets its reminder again.
        reminder_sent_at = CASE WHEN reminder_hours IS DISTINCT FROM ?::int OR date <> ? OR start_time <> ? THEN NULL ELSE reminder_sent_at END,
        reminder_hours = ?
@@ -145,6 +152,7 @@ export async function updateMeeting(id: number, _: FormState, fd: FormData): Pro
     m.mandatory,
     m.rsvp,
     m.openToAll,
+    oneOff && m.noCheckin,
     m.notes,
     m.audience,
     m.reminderHours,

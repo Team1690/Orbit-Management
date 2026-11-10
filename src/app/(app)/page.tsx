@@ -165,7 +165,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       )}
 
       {/* Mentors see who on their subteam is coming to the next meeting (no full dashboard). */}
-      {mentor && me?.subteam && <SubteamNextMeeting subteam={me.subteam} title={`${me.subteam} · next meeting`} />}
+      {mentor && me?.subteams.map((st) => <SubteamNextMeeting key={st} subteam={st} title={`${st} · next meeting`} />)}
 
       {!mentor && mentorsToday.length > 0 && (
         <Card
@@ -276,7 +276,16 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         )}
       </div>
 
-      <Card title="Coming up">
+      <Card
+        title="Coming up"
+        actions={
+          !mentor && (
+            <Link href="/profile#absences" className="link text-sm">
+              Away? Plan an absence
+            </Link>
+          )
+        }
+      >
         {upcoming.length === 0 ? (
           <Empty>No meetings scheduled in the next two weeks.</Empty>
         ) : (

@@ -31,6 +31,9 @@ export type Meeting = {
   open_to_all: number;
   fyi_sent_at: string | null;
   checkout_reminder_at: string | null;
+  /** One-off meetings with no check-in: answering Coming or Late counts as being there (attendance.ts, rsvp-visits.ts). */
+  no_checkin: number;
+  auto_visits_at: string | null;
 };
 
 export type SlotApplies = "all" | "in_season" | "off_season";
@@ -67,6 +70,8 @@ export type Rsvp = {
   responded_at: string;
   /** The captain who set this answer, or null when the member answered. */
   updated_by: number | null;
+  /** The planned absence that answered for them (absences.ts); null once anyone answers by hand. */
+  absence_id: number | null;
 };
 
 export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -140,11 +145,13 @@ export async function setRsvp(
   note: string | null,
   lateByMin: number | null,
   updatedBy: number | null = null,
+  absenceId: number | null = null,
 ) {
   await run(
-    `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at, updated_by, absence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(meeting_id, user_id) DO UPDATE SET response = excluded.response, note = excluded.note,
-       late_by_min = excluded.late_by_min, responded_at = excluded.responded_at, updated_by = excluded.updated_by`,
+       late_by_min = excluded.late_by_min, responded_at = excluded.responded_at, updated_by = excluded.updated_by,
+       absence_id = excluded.absence_id`,
     meetingId,
     userId,
     response,
@@ -152,6 +159,7 @@ export async function setRsvp(
     lateByMin,
     new Date().toISOString(),
     updatedBy,
+    absenceId,
   );
 }
 

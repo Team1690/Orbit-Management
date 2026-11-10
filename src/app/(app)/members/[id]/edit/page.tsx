@@ -5,7 +5,7 @@ import { updateMember } from "@/actions/members";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { requireStaff } from "@/lib/auth";
-import { SubjectInputs, SubteamSelect, TeamCheckboxes } from "@/components/member-fields";
+import { SubjectInputs, SubteamCheckboxes, SubteamSelect, TeamCheckboxes } from "@/components/member-fields";
 import { GRADES, SHIRT_SIZES, getMember, roleChoice, roleLabel } from "@/lib/members";
 
 export const metadata: Metadata = { title: "Edit member" };
@@ -36,7 +36,7 @@ export default async function EditMemberPage({ params }: PageProps<"/members/[id
           <Field label="Email" hint="Used to log in.">
             <input name="email" type="email" defaultValue={m.email} required className="input" />
           </Field>
-          <SubteamSelect defaultValue={m.subteam} />
+          {m.role === "mentor" ? <SubteamCheckboxes selected={m.subteams} className="sm:col-span-2" /> : <SubteamSelect defaultValue={m.subteam} />}
           <Field label="Grade">
             <select name="grade" defaultValue={m.grade ?? ""} className="input">
               <option value="">—</option>

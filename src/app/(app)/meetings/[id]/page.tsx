@@ -77,6 +77,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
             {!meeting.mandatory ? <Badge>Optional</Badge> : null}
             {!meeting.rsvp ? <Badge>No RSVP</Badge> : null}
             {meeting.open_to_all ? <Badge tone="green">Open to everyone</Badge> : null}
+            {meeting.no_checkin ? <Badge tone="purple">No check-in: RSVPs count</Badge> : null}
             <Badge tone="blue">For: {audienceLabel(parseAudience(meeting.audience)) ?? "whole team"}</Badge>
             {meeting.reminder_hours ? (
               <Badge>
@@ -208,6 +209,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                           <div className="text-[11px] text-slate-400">
                             {fmtDateTime(e.rsvp.responded_at)}
                             {e.rsvp.updated_by && " · set by a captain"}
+                            {e.rsvp.absence_id && " · planned absence"}
                           </div>
                         )}
                       </td>
@@ -277,6 +279,17 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked={!!meeting.rsvp} className="size-4" /> Ask members to RSVP
               </label>
+              {oneOff && (
+              <label className="col-span-2 flex items-start gap-2 text-sm">
+                <input type="checkbox" name="no_checkin" defaultChecked={!!meeting.no_checkin} className="mt-0.5 size-4" />
+                <span>
+                  No check-in needed
+                  <span className="block text-xs text-slate-500">
+                    Everyone who answers Coming or Late counts as present and gets the meeting's hours; nobody scans in.
+                  </span>
+                </span>
+              </label>
+              )}
               <label className="col-span-2 flex items-start gap-2 text-sm">
                 <input type="checkbox" name="open_to_all" defaultChecked={!!meeting.open_to_all} className="mt-0.5 size-4" />
                 <span>

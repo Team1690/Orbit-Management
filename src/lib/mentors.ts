@@ -4,6 +4,9 @@ import { addDays, weekdayOf } from "./timeutil";
 // Mentors announce when they'll come: regular weekly slots, plus exceptions for a single
 // date ("can't come this Tuesday", or an extra one-off visit).
 
+/** A mentor's subteams as one label ("CAD, Mechanical"); `subteam` in the rows below. */
+const MENTOR_SUBTEAMS = `COALESCE((SELECT string_agg(ms.subteam, ', ' ORDER BY ms.subteam) FROM mentor_subteams ms WHERE ms.user_id = u.id), u.subteam) AS subteam`;
+
 export type MentorSlot = {
   id: number;
   user_id: number;
@@ -45,13 +48,13 @@ export type PlanEntry = {
 
 export function listMentors() {
   return all<{ id: number; name: string; subteam: string | null }>(
-    "SELECT id, name, subteam FROM users WHERE role = 'mentor' AND active = 1 ORDER BY lower(name)",
+    `SELECT id, name, ${MENTOR_SUBTEAMS} FROM users u WHERE role = 'mentor' AND active = 1 ORDER BY lower(name)`,
   );
 }
 
 export function mentorSlots(userId?: number) {
   return all<MentorSlot>(
-    `SELECT s.id, s.user_id, u.name, u.subteam, s.weekday, s.start_time, s.end_time, s.note
+    `SELECT s.id, s.user_id, u.name, ${MENTOR_SUBTEAMS}, s.weekday, s.start_time, s.end_time, s.note
        FROM mentor_slots s JOIN users u ON u.id = s.user_id
       WHERE u.role = 'mentor' AND u.active = 1 AND (?::int IS NULL OR s.user_id = ?)
       ORDER BY s.weekday, s.start_time, u.name`,
@@ -65,7 +68,7 @@ export async function mentorPlan(fromDate: string, days: number) {
   const toDate = addDays(fromDate, days - 1);
   const slots = await mentorSlots();
   const changes = await all<MentorChange>(
-    `SELECT c.id, c.user_id, u.name, u.subteam, c.date, c.kind, c.slot_id, c.start_time, c.end_time, c.note
+    `SELECT c.id, c.user_id, u.name, ${MENTOR_SUBTEAMS}, c.date, c.kind, c.slot_id, c.start_time, c.end_time, c.note
        FROM mentor_changes c JOIN users u ON u.id = c.user_id
       WHERE u.role = 'mentor' AND u.active = 1 AND c.date BETWEEN ? AND ?`,
     fromDate,

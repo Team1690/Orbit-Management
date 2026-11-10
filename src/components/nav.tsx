@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { ThemeToggle } from "./theme-toggle";
 import {
   CalendarIcon,
   GridIcon,
@@ -116,6 +117,7 @@ export function Nav({
               </Link>
             )}
             <span className="hidden px-2 text-sm text-slate-500 lg:inline">{name}</span>
+            <ThemeToggle />
             <form action={logout}>
               <button type="submit" className="btn btn-ghost btn-sm" aria-label="Log out" title="Log out">
                 <LogoutIcon />

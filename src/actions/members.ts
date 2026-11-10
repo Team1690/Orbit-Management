@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireStaff, requireUser, type Role } from "@/lib/auth";
 import { one, run, tx } from "@/lib/db";
 import { DATE_RE, EMAIL_RE, int, optStr, str, type FormState } from "@/lib/forms";
-import { SUBTEAMS, createInvite, normalizeSubteam, setTeams } from "@/lib/members";
+import { SUBTEAMS, createInvite, normalizeSubteam, setMentorSubteams, setTeams } from "@/lib/members";
 import { appOrigin } from "@/lib/qr";
 import { readVisitTimes } from "@/lib/visits";
 
@@ -60,6 +60,7 @@ export async function createMember(_: FormState, fd: FormData): Promise<FormStat
       new Date().getFullYear(),
     );
     await setTeams(id, fd.getAll("teams").map(String));
+    if (r.role === "mentor" && subteam) await setMentorSubteams(id, [subteam]);
     return id;
   });
   const link = await inviteUrl(await createInvite(id));
@@ -133,8 +134,16 @@ export async function updateMember(id: number, _: FormState, fd: FormData): Prom
   if (!captain && current.role === "captain" && active !== !!current.active) return { error: "Only captains can change a captain's status." };
   const birthday = optStr(fd, "birthday");
   if (birthday && !DATE_RE.test(birthday)) return { error: "Birthday must be a date." };
-  const subteam = normalizeSubteam(optStr(fd, "subteam"));
-  if (subteam === undefined) return { error: "Pick a subteam from the list." };
+  // A mentor's form has subteam checkboxes (several allowed); everyone else's has one subteam list.
+  let picked: string[];
+  if (fd.get("subteams_form")) {
+    picked = fd.getAll("subteams").map(String).filter((s) => SUBTEAMS.includes(s));
+  } else {
+    const one = normalizeSubteam(optStr(fd, "subteam"));
+    if (one === undefined) return { error: "Pick a subteam from the list." };
+    picked = one ? [one] : [];
+  }
+  const subteam = picked[0] ?? null;
   if (r.subteamLead && !subteam) return { error: LEAD_NEEDS_SUBTEAM };
 
   await tx(async () => {
@@ -162,6 +171,7 @@ export async function updateMember(id: number, _: FormState, fd: FormData): Prom
       id,
     );
     await setTeams(id, fd.getAll("teams").map(String));
+    await setMentorSubteams(id, r.role === "mentor" ? picked : []);
   });
   if (!active) await run("DELETE FROM sessions WHERE user_id = ?", id);
   revalidatePath("/", "layout");

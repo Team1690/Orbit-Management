@@ -102,9 +102,12 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
         notice = !!override.notice;
       } else if (firstIn !== null) {
         status = firstIn <= start.getTime() + graceMs ? "present" : "late";
+      } else if (m.no_checkin && rsvp && rsvp.response !== "no" && now >= start.getTime()) {
+        // A meeting without check-in: answering Coming or Late counts as being there.
+        status = "present";
       } else if (now < start.getTime()) {
         status = "upcoming";
-      } else if (now < end.getTime()) {
+      } else if (now < end.getTime() && !m.no_checkin) {
         status = "missing";
       } else {
         status = m.mandatory ? "absent" : "not_required";

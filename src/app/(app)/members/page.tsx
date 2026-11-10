@@ -54,7 +54,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
     if (filter === "mentors" && m.role !== "mentor") return false;
     if (filter === "here" && !here.has(m.id)) return false;
     if (filter === "not_joined" && m.has_password) return false;
-    if (subteam && m.subteam !== subteam && !m.teams.includes(subteam)) return false;
+    if (subteam && !m.subteams.includes(subteam) && !m.teams.includes(subteam)) return false;
     if (q && !`${m.name} ${m.email} ${m.phone ?? ""}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -192,13 +192,13 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                             </span>
                             {/* Phones hide the Subteam and Grade columns, so show them here. */}
                             <span className="block text-xs text-slate-500 md:hidden">
-                              {[m.subteam, m.grade && (m.grade === "Alumni" ? "Alumni" : `Grade ${m.grade}`)].filter(Boolean).join(" · ")}
+                              {[m.subteams.join(", "), m.grade && (m.grade === "Alumni" ? "Alumni" : `Grade ${m.grade}`)].filter(Boolean).join(" · ")}
                             </span>
                           </span>
                         </Link>
                       </td>
                       <td className="hidden text-slate-600 sm:table-cell">
-                        {m.subteam ?? "—"}
+                        {m.subteams.join(", ") || "—"}
                         {m.teams.length > 0 && <div className="text-xs text-slate-400">+ {m.teams.join(", ")}</div>}
                       </td>
                       <td className="hidden text-slate-600 md:table-cell">{m.grade ?? "—"}</td>

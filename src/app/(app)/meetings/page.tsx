@@ -28,6 +28,7 @@ function MeetingFlags({ m }: { m: Meeting }) {
       {!m.mandatory ? <Badge>Optional</Badge> : null}
       {!m.rsvp ? <Badge>No RSVP</Badge> : null}
       {m.open_to_all ? <Badge tone="green">Open</Badge> : null}
+      {m.no_checkin ? <Badge tone="purple">No check-in</Badge> : null}
       {forWho ? <Badge tone="blue">For: {forWho}</Badge> : null}
     </>
   );
@@ -276,6 +277,15 @@ export default async function MeetingsPage() {
               </label>
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="rsvp" defaultChecked className="size-4" /> Ask members to RSVP
+              </label>
+              <label className="col-span-2 flex items-start gap-2 text-sm">
+                <input type="checkbox" name="no_checkin"  className="mt-0.5 size-4" />
+                <span>
+                  No check-in needed
+                  <span className="block text-xs text-slate-500">
+                    Everyone who answers Coming or Late counts as present and gets the meeting's hours; nobody scans in.
+                  </span>
+                </span>
               </label>
               <label className="col-span-2 flex items-start gap-2 text-sm">
                 <input type="checkbox" name="open_to_all" className="mt-0.5 size-4" />

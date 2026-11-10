@@ -5,6 +5,8 @@ import { sendMeetingReminders, sendRsvpNotifications } from "./rsvp-reminders";
 import { sendVolunteerAsks } from "./volunteers";
 import { sendOpenMeetingFyi } from "./open-meetings";
 import { sendCheckoutReminders } from "./checkout-reminders";
+import { createRsvpVisits } from "./rsvp-visits";
+import { applyAbsencesToNewMeetings } from "./absences";
 import { getSettings } from "./settings";
 import { sendMeetingSummaries } from "./slack";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
@@ -43,12 +45,15 @@ export async function runTick(force = false) {
   if (!force && now - lastTick < 30_000) return;
   lastTick = now;
   await ensureScheduledMeetings(new Date(now));
+  // Before any "Will you come?": students away on a planned absence are answered for first.
+  await applyAbsencesToNewMeetings(new Date(now));
   await sendRsvpNotifications(new Date(now));
   await sendVolunteerAsks(new Date(now));
   await sendOpenMeetingFyi(new Date(now));
   await sendMeetingReminders(new Date(now));
   await checkMissingAlerts(new Date(now));
   await sendMeetingSummaries(new Date(now));
+  await createRsvpVisits(new Date(now));
   await sendCheckoutReminders(new Date(now));
   await autoCheckout(new Date(now));
   await run("DELETE FROM sessions WHERE expires_at < ?", nowIso());

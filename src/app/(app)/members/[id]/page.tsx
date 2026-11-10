@@ -19,10 +19,11 @@ import { localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
 import { VisitRow } from "@/components/visit-row";
 import { TimeInput } from "@/components/time-input";
+import { upcomingAbsences } from "@/lib/absences";
 
 export const metadata: Metadata = { title: "Member" };
 
-const METHOD_LABEL: Record<string, string> = { auto: "auto check-out", manual: "edited by captain" };
+const METHOD_LABEL: Record<string, string> = { auto: "auto check-out", manual: "edited by captain", rsvp: "from RSVP, no check-in" };
 
 function Detail({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -58,6 +59,16 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
     .filter((mt) => attendance.get(mt.id)?.has(id))
     .reverse()
     .slice(0, 20);
+  /** Meetings with RSVPs they came to (on time or late) without having answered. */
+  const cameWithoutRsvp = new Set(
+    started
+      .filter((mt) => {
+        const e = attendance.get(mt.id)?.get(id);
+        return !!mt.rsvp && !!e && !e.rsvp && (e.status === "present" || e.status === "late");
+      })
+      .map((mt) => mt.id),
+  );
+  const absences = await upcomingAbsences(id);
   const visit = await openVisit(id);
   const visits = await recentVisits(id, 15);
   const notes = await notesFor(id);
@@ -79,7 +90,9 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
         subtitle={
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             {hasRoleBadge(m) && <Badge tone={m.role === "mentor" ? "purple" : "blue"}>{roleLabel(m)}</Badge>}
-            {m.subteam && <Badge>{m.subteam}</Badge>}
+            {m.subteams.map((st) => (
+              <Badge key={st}>{st}</Badge>
+            ))}
             {m.teams.map((t) => (
               <Badge key={t}>{t}</Badge>
             ))}
@@ -125,7 +138,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
             <Stat
               label="Attendance"
               value={pct(s.rate)}
-              hint={`${s.present + s.late} of ${s.meetings} meetings · ${s.late} late`}
+              hint={`${s.present + s.late} of ${s.meetings} meetings · ${s.late} late · ${cameWithoutRsvp.size} checked in without answering the RSVP`}
               tone={s.rate === null ? "default" : s.rate >= 0.85 ? "good" : s.rate >= 0.7 ? "warn" : "bad"}
             />
             <Stat
@@ -188,6 +201,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
                           {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
                           {e?.overridden && " · set by captain"}
+                          {cameWithoutRsvp.has(mt.id) && " · didn't answer the RSVP"}
                         </div>
                       </div>
                       <AttendanceBadge entry={e} />
@@ -257,7 +271,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                 </div>
               )}
               <div className="col-span-2">
-                <Detail label="Teams" value={[m.subteam, ...m.teams].filter(Boolean).join(", ")} />
+                <Detail label="Teams" value={[...m.subteams, ...m.teams].join(", ")} />
               </div>
               <Detail label="Phone" value={m.phone} />
               <Detail label="Birthday" value={m.birthday ? fmtDate(m.birthday, true) : null} />
@@ -270,6 +284,25 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
               </div>
             </dl>
           </Card>
+
+          {!isMentor && (
+            <Card title="Planned absences">
+              {absences.length === 0 ? (
+                <p className="text-sm text-slate-400">None coming up.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {absences.map((a) => (
+                    <li key={a.id}>
+                      <div className="font-medium">
+                        {a.start_date === a.end_date ? fmtDate(a.start_date) : `${fmtDate(a.start_date)} – ${fmtDate(a.end_date)}`}
+                      </div>
+                      <div className="text-slate-500">{a.reason}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
 
           <Card title="Hours by season">
             {seasons.length === 0 ? (

@@ -50,7 +50,7 @@ export default async function ExportMembersPage() {
           <Choices legend="Subteam or team" name="subteam" options={withNotSet([...SUBTEAMS, ...EXTRA_TEAMS])} />
           <Choices legend="Shirt size" name="shirt" options={withNotSet(SHIRT_SIZES)} />
           <p className="text-sm text-slate-500">
-            Columns: name, phone, grade, school subjects, parent name, parent phone and shirt size.
+            Columns: name, phone, grade, subteam, school subjects, parent name, parent phone and shirt size.
           </p>
           <button className="btn btn-primary">
             <DownloadIcon /> Download CSV

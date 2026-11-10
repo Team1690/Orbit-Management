@@ -8,8 +8,7 @@ import { Avatar, Badge, Banner, Card, Empty, PageHeader, Stat } from "@/componen
 import { alertsToday } from "@/lib/alerts";
 import { computeAttendance, summarize, type AttendanceEntry, type AttendanceSummary } from "@/lib/attendance";
 import { requireStaff } from "@/lib/auth";
-import { all } from "@/lib/db";
-import { fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, minutesLate, pct, relativeDay } from "@/lib/format";
+import { fmtDate, fmtDuration, fmtHours, fmtTime, minutesLate, pct, relativeDay } from "@/lib/format";
 import { rsvpDetail } from "@/lib/late-by";
 import { audienceLabel, parseAudience } from "@/lib/audience";
 import { meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
@@ -209,7 +208,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const t = today();
   const period = await currentPeriod();
-  const [members, present, alerts, settings, mentorPlanToday, hours, soon, summaries, monthSummaries, autoClosed, publicKey] =
+  const [members, present, alerts, settings, mentorPlanToday, hours, soon, summaries, monthSummaries, periodMeetings, publicKey] =
     await Promise.all([
       listMembers(),
       presentNow(),
@@ -220,10 +219,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       meetingsBetween(t, addDays(t, 14), false),
       meetingsBetween(period.startDate, t, false).then((ms) => summarize(ms)),
       meetingsBetween(addDays(t, -29), t, false).then((ms) => summarize(ms)),
-      all<{ id: number; user_id: number; check_in: string; check_out: string }>(
-        "SELECT id, user_id, check_in, check_out FROM visits WHERE out_method = 'auto' AND check_in > ? ORDER BY check_in DESC LIMIT 10",
-        new Date(Date.now() - 7 * 86_400_000).toISOString(),
-      ),
+      meetingsBetween(period.startDate, t, false),
       vapidPublicKey(),
     ]);
   const memberMap = new Map(members.map((m) => [m.id, m]));
@@ -232,7 +228,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const mentorsHere = present.length - studentsHere;
   const mentorsToday = mentorPlanToday[0].entries;
   const presentIds = new Set(present.map((p) => p.user_id));
-  const teamMs = [...hours].filter(([id]) => students.has(id)).reduce((sum, [, h]) => sum + h.ms, 0);
+  // Team hours: how long the team has met this period, counting overlapping meetings once (not per member).
+  const now = Date.now();
+  const held = periodMeetings
+    .map((m) => meetingWindow(m))
+    .filter((w) => w.start.getTime() < now)
+    .map((w) => [w.start.getTime(), Math.min(w.end.getTime(), now)] as const)
+    .sort((a, b) => a[0] - b[0]);
+  let teamMs = 0;
+  let coveredTo = 0;
+  for (const [from, to] of held) {
+    const startAt = Math.max(from, coveredTo);
+    if (to > startAt) teamMs += to - startAt;
+    coveredTo = Math.max(coveredTo, to);
+  }
 
   // The weekly meeting happening now or next, and the next one-off meeting if there's one this week.
   const notOver = soon.filter((m) => meetingWindow(m).end > new Date());
@@ -264,7 +273,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     ...lowAttendance.map(([id]) => id),
     ...manyAbsences.map(([id]) => id),
     ...manyLates.map(([id]) => id),
-    ...autoClosed.map((v) => v.user_id),
   ]);
   const attentionCount = attentionPeople.size + (notJoined.length ? 1 : 0);
 
@@ -300,7 +308,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           hint={`of ${students.size} students${mentorsHere ? ` · +${mentorsHere} mentor${mentorsHere === 1 ? "" : "s"}` : ""}`}
           tone={studentsHere ? "good" : "default"}
         />
-        <Stat label="Team hours" value={fmtHours(teamMs)} hint={period.label} href="/hours" />
+        <Stat label="Team hours" value={fmtHours(teamMs)} hint={`${held.length} meetings · ${period.label}`} href="/hours" />
         <Stat
           label="Avg attendance"
           value={pct(avgRate(summaries, memberMap))}
@@ -456,23 +464,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                             {memberMap.get(id)!.name}
                           </Link>
                           <Badge tone="yellow">{pct(s.rate)}</Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {autoClosed.length > 0 && (
-                  <div>
-                    <div className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">Forgot to check out · last 7 days</div>
-                    <ul className="space-y-1">
-                      {autoClosed.map((v) => (
-                        <li key={v.id} className="flex justify-between gap-2">
-                          <Link href={`/members/${v.user_id}#visits`} className="truncate hover:underline">
-                            {memberMap.get(v.user_id)?.name ?? "Former member"}
-                          </Link>
-                          <span className="shrink-0 text-xs text-slate-500">
-                            {fmtDay(v.check_in)} {fmtTime(v.check_in)}–{fmtTime(v.check_out)}
-                          </span>
                         </li>
                       ))}
                     </ul>

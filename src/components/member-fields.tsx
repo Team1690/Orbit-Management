@@ -14,6 +14,28 @@ export function SubteamSelect({ defaultValue }: { defaultValue?: string | null }
   );
 }
 
+/** A mentor's main subteams: several can be ticked. `subteams_form` tells the server which field to read. */
+export function SubteamCheckboxes({ selected = [], className = "" }: { selected?: string[]; className?: string }) {
+  return (
+    <fieldset className={className}>
+      <legend className="label">Subteams</legend>
+      <input type="hidden" name="subteams_form" value="1" />
+      <div className="flex flex-wrap gap-2">
+        {SUBTEAMS.map((s) => (
+          <label
+            key={s}
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-800"
+          >
+            <input type="checkbox" name="subteams" value={s} defaultChecked={selected.includes(s)} className="size-4 accent-brand-600" />
+            {s}
+          </label>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-slate-500">Mentors can be in several subteams.</p>
+    </fieldset>
+  );
+}
+
 export function TeamCheckboxes({ selected = [], className = "" }: { selected?: string[]; className?: string }) {
   return (
     <fieldset className={className}>
