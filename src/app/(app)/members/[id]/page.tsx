@@ -138,7 +138,12 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
             <Stat
               label="Attendance"
               value={pct(s.rate)}
-              hint={`${s.present + s.late} of ${s.meetings} meetings · ${s.late} late · ${cameWithoutRsvp.size} checked in without answering the RSVP`}
+              hint={
+                <>
+                  {s.present + s.late} of {s.meetings} meetings · {s.late} late ·{" "}
+                  <span className={cameWithoutRsvp.size ? "font-medium text-rose-600" : ""}>{cameWithoutRsvp.size} checked in without answering the RSVP</span>
+                </>
+              }
               tone={s.rate === null ? "default" : s.rate >= 0.85 ? "good" : s.rate >= 0.7 ? "warn" : "bad"}
             />
             <Stat
@@ -201,7 +206,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
                           {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
                           {e?.overridden && " · set by captain"}
-                          {cameWithoutRsvp.has(mt.id) && " · didn't answer the RSVP"}
+                          {cameWithoutRsvp.has(mt.id) && <span className="font-medium text-rose-600"> · didn&apos;t answer the RSVP</span>}
                         </div>
                       </div>
                       <AttendanceBadge entry={e} />

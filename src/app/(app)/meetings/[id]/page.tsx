@@ -189,7 +189,14 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                           <form action={setMemberRsvp}>
                             <input type="hidden" name="meeting_id" value={id} />
                             <input type="hidden" name="user_id" value={userId} />
-                            <AutoSubmitSelect name="answer" defaultValue={rsvpValue(e)} className="input w-auto py-1 text-xs" key={rsvpValue(e)} aria-label="RSVP">
+                            <AutoSubmitSelect
+                              name="answer"
+                              defaultValue={rsvpValue(e)}
+                              // No answer stands out in red.
+                              className={`input w-auto py-1 text-xs ${e.rsvp ? "" : "border-rose-300 font-medium text-rose-600"}`}
+                              key={rsvpValue(e)}
+                              aria-label="RSVP"
+                            >
                               <option value="none">No answer</option>
                               <option value="yes">Coming</option>
                               {e.rsvp?.response === "late" && !e.rsvp.late_by_min && <option value="late:">Late</option>}

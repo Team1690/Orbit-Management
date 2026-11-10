@@ -61,9 +61,19 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const captain = role === "captain";
-  const tabs = captain ? CAPTAIN_LINKS : leadMentor ? LEAD_MENTOR_LINKS : role === "mentor" ? MENTOR_LINKS : subteamLead ? SUBTEAM_LEAD_LINKS : MEMBER_LINKS;
+  // Captains are students too: Profile (their details, notifications, planned absences) is their fifth tab.
+  const profile: NavLink = { href: "/profile", label: "Profile", icon: UserIcon };
+  const tabs = captain
+    ? [...CAPTAIN_LINKS, profile]
+    : leadMentor
+      ? LEAD_MENTOR_LINKS
+      : role === "mentor"
+        ? MENTOR_LINKS
+        : subteamLead
+          ? SUBTEAM_LEAD_LINKS
+          : MEMBER_LINKS;
   const desktop = captain
-    ? [...CAPTAIN_LINKS, { href: "/settings", label: "Settings", icon: SlidersIcon }]
+    ? [...CAPTAIN_LINKS, profile, { href: "/settings", label: "Settings", icon: SlidersIcon }]
     : leadMentor
       ? [...LEAD_MENTOR_LINKS, { href: "/profile", label: "Profile", icon: UserIcon }]
       : tabs;
