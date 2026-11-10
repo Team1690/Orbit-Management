@@ -3,7 +3,7 @@ import { deleteMyVisit, updateMyVisit } from "@/actions/mentors";
 import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { volunteer } from "@/actions/volunteers";
 import { SubmitButton } from "@/components/client";
-import { MentorIcon, ScanIcon } from "@/components/icons";
+import { MentorIcon, ScanIcon, UserIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
 import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
 import { ReminderPrompt } from "@/components/push-toggle";
@@ -83,9 +83,17 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     <div className="mx-auto max-w-2xl space-y-4">
       {flash && <Banner tone={flash.tone}>{flash.text}</Banner>}
 
-      <div>
-        <p className="text-sm text-slate-500">{fmtDate(t)}</p>
-        <h1 className="text-2xl font-bold tracking-tight">Hi, {firstName(user.name)}</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-500">{fmtDate(t)}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Hi, {firstName(user.name)}</h1>
+        </div>
+        {/* Captains have no Profile tab on phones: their details, notifications and planned absences are here. */}
+        {user.role === "captain" && (
+          <Link href="/profile" className="btn btn-secondary btn-sm">
+            <UserIcon width={16} height={16} /> My profile
+          </Link>
+        )}
       </div>
 
       {visit ? (

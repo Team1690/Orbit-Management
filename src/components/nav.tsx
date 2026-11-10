@@ -61,10 +61,10 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const captain = role === "captain";
-  // Captains are students too: Profile (their details, notifications, planned absences) is their fifth tab.
+  // Captains reach Profile from their home screen (and the desktop bar), keeping the phone tab bar free.
   const profile: NavLink = { href: "/profile", label: "Profile", icon: UserIcon };
   const tabs = captain
-    ? [...CAPTAIN_LINKS, profile]
+    ? CAPTAIN_LINKS
     : leadMentor
       ? LEAD_MENTOR_LINKS
       : role === "mentor"
