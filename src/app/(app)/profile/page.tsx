@@ -89,6 +89,13 @@ export default async function ProfilePage() {
         </Card>
       )}
 
+      {m.role === "mentor" && !m.lead_mentor && (
+        <Card title="Notifications">
+          <p className="mb-3 text-sm text-slate-600">Requests for mentor volunteers, and reminders for meetings you volunteered for, on this device.</p>
+          <PushToggle publicKey={await vapidPublicKey()} what="reminders" />
+        </Card>
+      )}
+
       {m.role === "mentor" && !!m.lead_mentor && (
         <Card title="Notifications">
           <p className="mb-3 text-sm text-slate-600">Meeting reminders on this device, plus captain alerts if you keep them on below.</p>

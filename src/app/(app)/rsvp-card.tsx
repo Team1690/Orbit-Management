@@ -20,6 +20,7 @@ export function RsvpCard({
   current,
   currentNote,
   currentLateBy,
+  currentLeavingEarly,
   answerBy,
   closed,
 }: {
@@ -29,12 +30,15 @@ export function RsvpCard({
   current: Response | null;
   currentNote: string | null;
   currentLateBy: number | null;
+  /** Their reason for leaving early, if they said so. */
+  currentLeavingEarly: string | null;
   /** When answers close, e.g. "Today 10:00"; null when there's no deadline. */
   answerBy: string | null;
   /** Past the deadline: only "Coming" and "Late" can still switch, until the start. */
   closed: boolean;
 }) {
   const [choice, setChoice] = useState<Response | null>(null);
+  const [leaving, setLeaving] = useState(!!currentLeavingEarly);
   const [state, action, pending] = useActionState(async (prev: Awaited<ReturnType<typeof respondRsvp>>, fd: FormData) => {
     const result = await respondRsvp(prev, fd);
     if (!result?.error) setChoice(null);
@@ -129,6 +133,39 @@ export function RsvpCard({
                 Cancel
               </button>
             </div>
+          </div>
+        )}
+        {choice !== "no" && (
+          <div className="mt-3 rounded-xl border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" name="leave_early" checked={leaving} onChange={(e) => setLeaving(e.target.checked)} className="size-4" />
+              Leaving early
+            </label>
+            {leaving && (
+              <input
+                name="leave_note"
+                required
+                maxLength={200}
+                defaultValue={currentLeavingEarly ?? ""}
+                placeholder="Why, and when? e.g. bus at 19:00"
+                className="input mt-2"
+              />
+            )}
+            {/* Already answered Coming or Late: save just this change. */}
+            {!choice && (current === "yes" || current === "late") && leaving !== !!currentLeavingEarly && (
+              <>
+                {current === "late" && currentLateBy && <input type="hidden" name="late_by" value={currentLateBy} />}
+                {current === "late" && currentNote && <input type="hidden" name="note" value={currentNote} />}
+                <button type="submit" name="response" value={current} className="btn btn-primary btn-sm mt-2" disabled={pending}>
+                  Save
+                </button>
+              </>
+            )}
+            {!choice && (current === "yes" || current === "late") && leaving && leaving === !!currentLeavingEarly && (
+              <button type="submit" name="response" value={current} className="btn btn-secondary btn-sm mt-2" disabled={pending}>
+                Update reason
+              </button>
+            )}
           </div>
         )}
         {!choice && current === "late" && currentLateBy && (

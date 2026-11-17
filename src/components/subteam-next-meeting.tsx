@@ -74,7 +74,7 @@ export async function SubteamNextMeeting({ subteam, title = "Next meeting" }: { 
             <span className="truncate">{names.get(id)}</span>
             <span className="flex shrink-0 items-center gap-1">
               {started && <AttendanceBadge entry={e} />}
-              <RsvpBadge response={e.rsvp?.response} lateByMin={e.rsvp?.late_by_min} />
+              <RsvpBadge response={e.rsvp?.response} lateByMin={e.rsvp?.late_by_min} leavingEarly={e.rsvp?.leaving_early} />
             </span>
           </li>
         ))}

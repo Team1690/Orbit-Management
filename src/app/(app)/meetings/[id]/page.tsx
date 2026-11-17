@@ -16,11 +16,19 @@ import { listMembers } from "@/lib/members";
 import { getSettings } from "@/lib/settings";
 import { TimeInput } from "@/components/time-input";
 import { VolunteerFields } from "@/components/volunteer-fields";
-import { openSpots, slotsFor, volunteersFor } from "@/lib/volunteers";
+import { openSpots, slotLabel, slotsFor, volunteersFor } from "@/lib/volunteers";
 
 export const metadata: Metadata = { title: "Meeting" };
 
 const ORDER: Record<AttendanceEntry["status"], number> = { missing: 0, absent: 1, late: 2, upcoming: 3, not_required: 4, present: 5 };
+
+/** Answers on the sheet: coming green, late yellow, can't come (gave notice) purple, no answer red. */
+const RSVP_COLOR = {
+  yes: "border-emerald-300 text-emerald-700",
+  late: "border-amber-300 text-amber-700",
+  no: "border-violet-300 text-violet-700",
+  none: "border-rose-300 text-rose-600",
+} as const;
 
 /** The RSVP dropdown's value for a member's answer. */
 function rsvpValue(e: AttendanceEntry) {
@@ -135,7 +143,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
               return (
                 <li key={sl.id}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{sl.team ?? "Anyone on the team"}</span>
+                    <span className="font-medium">{slotLabel(sl.team)}</span>
                     <Badge tone={open.get(sl.id) ? "yellow" : "green"}>
                       {sl.wanted - (open.get(sl.id) ?? 0)} of {sl.wanted}
                       {open.get(sl.id) ? ` · ${open.get(sl.id)} open` : " · full"}
@@ -192,8 +200,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                             <AutoSubmitSelect
                               name="answer"
                               defaultValue={rsvpValue(e)}
-                              // No answer stands out in red.
-                              className={`input w-auto py-1 text-xs ${e.rsvp ? "" : "border-rose-300 font-medium text-rose-600"}`}
+                              className={`input w-auto py-1 text-xs font-medium ${RSVP_COLOR[e.rsvp?.response ?? "none"]}`}
                               key={rsvpValue(e)}
                               aria-label="RSVP"
                             >
@@ -212,6 +219,9 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                           "—"
                         )}
                         {e.rsvp?.note && <div className="mt-0.5 max-w-56 text-xs text-slate-500">&ldquo;{e.rsvp.note}&rdquo;</div>}
+                        {e.rsvp?.leaving_early && (
+                          <div className="mt-0.5 max-w-56 text-xs font-medium text-amber-700">Leaving early: &ldquo;{e.rsvp.leaving_early}&rdquo;</div>
+                        )}
                         {e.rsvp && (
                           <div className="text-[11px] text-slate-400">
                             {fmtDateTime(e.rsvp.responded_at)}

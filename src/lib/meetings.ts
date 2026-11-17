@@ -72,6 +72,8 @@ export type Rsvp = {
   updated_by: number | null;
   /** The planned absence that answered for them (absences.ts); null once anyone answers by hand. */
   absence_id: number | null;
+  /** Coming or Late but leaving before the end: their short reason; null when staying to the end. */
+  leaving_early: string | null;
 };
 
 export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -146,6 +148,8 @@ export async function setRsvp(
   lateByMin: number | null,
   updatedBy: number | null = null,
   absenceId: number | null = null,
+  /** Leaving early with this reason, or null for not; leave out to keep what they said before. */
+  leavingEarly?: string | null,
 ) {
   await run(
     `INSERT INTO rsvps (meeting_id, user_id, response, note, late_by_min, responded_at, updated_by, absence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -161,6 +165,10 @@ export async function setRsvp(
     updatedBy,
     absenceId,
   );
+  // "Can't come" has no leaving early; otherwise change it only when given.
+  if (response === "no" || leavingEarly !== undefined) {
+    await run("UPDATE rsvps SET leaving_early = ? WHERE meeting_id = ? AND user_id = ?", response === "no" ? null : (leavingEarly ?? null), meetingId, userId);
+  }
 }
 
 /** When members stop being able to answer, `closeHours` before the start; null when there's no deadline. */

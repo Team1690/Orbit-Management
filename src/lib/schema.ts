@@ -287,6 +287,11 @@ const MIGRATIONS: string[] = [
   CREATE INDEX absences_user ON absences(user_id, end_date);
   ALTER TABLE rsvps ADD COLUMN absence_id INTEGER REFERENCES absences(id) ON DELETE SET NULL;
   `,
+
+  // 13: "Leaving early" on a Coming or Late answer: the short reason, or NULL when staying to the end.
+  `
+  ALTER TABLE rsvps ADD COLUMN leaving_early TEXT;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

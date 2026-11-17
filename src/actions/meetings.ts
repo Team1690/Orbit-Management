@@ -11,7 +11,7 @@ import { ensureScheduledMeetings, getMeeting, setRsvp, type RsvpResponse } from 
 import { EXTRA_TEAMS, SUBTEAMS } from "@/lib/members";
 import { today } from "@/lib/periods";
 import { sendRsvpNotifications } from "@/lib/rsvp-reminders";
-import { sendVolunteerAsks } from "@/lib/volunteers";
+import { MENTOR_SLOT, sendVolunteerAsks } from "@/lib/volunteers";
 import { sendOpenMeetingFyi } from "@/lib/open-meetings";
 import { applyAbsencesToNewMeetings } from "@/lib/absences";
 
@@ -39,12 +39,12 @@ function readVolunteerRequest(fd: FormData, audience: string | null) {
     const n = Number(c);
     const team = teams[i] ?? "";
     if (!Number.isInteger(n) || n < 1 || n > 100) return { error: "Ask for 1–100 volunteers per row, or leave the row empty." } as const;
-    if (team && !AUDIENCE_TEAMS.includes(team)) return { error: "Pick a team for each volunteer row." } as const;
+    if (team && team !== MENTOR_SLOT && !AUDIENCE_TEAMS.includes(team)) return { error: "Pick a team for each volunteer row." } as const;
     wanted.set(team, (wanted.get(team) ?? 0) + n);
   }
   const slots = [...wanted].map(([team, n]) => ({ team: team || null, wanted: n }));
-  // With the whole team expected there's nobody left to volunteer.
-  if (slots.length && audience === null) {
+  // With the whole team expected there's no student left to volunteer (mentors still can).
+  if (slots.some((s) => s.team !== MENTOR_SLOT) && audience === null) {
     return { error: "Everyone is already expected at this meeting, so nobody could volunteer. Under \"Who needs to come\", pick teams or people, or \"Only volunteers\"." } as const;
   }
   let reaskHours: number | null = null;

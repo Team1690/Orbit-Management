@@ -58,6 +58,7 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
   const late = by((e) => e.rsvp?.response === "late");
   const no = by((e) => e.rsvp?.response === "no");
   const noAnswer = by((e) => !e.rsvp);
+  const leavingEarly = by((e) => !!e.rsvp?.leaving_early && e.rsvp.response !== "no");
   const arrived = by((e) => e.status === "present" || e.status === "late");
   const notHere = (e: AttendanceEntry) => e.status === "missing" || e.status === "absent";
   const missingNoNotice = by((e) => notHere(e) && !e.notice);
@@ -165,6 +166,12 @@ async function MeetingPanel({ meeting, members }: { meeting: Meeting; members: M
                 <div>
                   <div className="mb-1.5 text-xs font-semibold tracking-wide text-amber-600 uppercase">Coming late ({late.length})</div>
                   <NameList ids={late} members={members} detail={detail} />
+                </div>
+              )}
+              {leavingEarly.length > 0 && (
+                <div>
+                  <div className="mb-1.5 text-xs font-semibold tracking-wide text-amber-600 uppercase">Leaving early ({leavingEarly.length})</div>
+                  <NameList ids={leavingEarly} members={members} detail={(id) => rows.find(([u]) => u === id)?.[1].rsvp?.leaving_early ?? null} />
                 </div>
               )}
               {no.length > 0 && (

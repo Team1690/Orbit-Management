@@ -20,7 +20,7 @@ import { currentPeriod, thisWeek, today } from "@/lib/periods";
 import { vapidPublicKey } from "@/lib/push";
 import { getSettings, tz } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
-import { requestsFor, volunteeredMeetingIds } from "@/lib/volunteers";
+import { requestsFor, slotLabel, volunteeredMeetingIds } from "@/lib/volunteers";
 import { addDays, localParts } from "@/lib/timeutil";
 import { openVisit, recentVisits, userHours } from "@/lib/visits";
 import { RsvpCard } from "./rsvp-card";
@@ -50,7 +50,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const volunteered = await volunteeredMeetingIds(user.id);
   /** Meetings this member is expected at (the whole team, one of their teams, picked by name, or volunteered). */
   const forMe = (m: Meeting) => !!me && (volunteered.has(m.id) || inAudience(parseAudience(m.audience), me));
-  const volunteerRequests = me && user.role !== "mentor" ? await requestsFor(me) : [];
+  const volunteerRequests = me ? await requestsFor(me) : [];
   const rsvpMeetings = (await openRsvpMeetings()).filter(forMe);
   const myRsvps = new Map((await rsvpsFor(rsvpMeetings.map((m) => m.id))).filter((r) => r.user_id === user.id).map((r) => [r.meeting_id, r]));
 
@@ -237,7 +237,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             </div>
             {m.notes && <p className="mt-1 text-sm text-slate-600">{m.notes}</p>}
             <p className="mt-2 text-xs text-slate-500">
-              {open.map(({ slot, left }) => `${slot.team ?? "Anyone"}: ${left} of ${slot.wanted} spot${slot.wanted === 1 ? "" : "s"} open`).join(" · ")}
+              {open.map(({ slot, left }) => `${slotLabel(slot.team)}: ${left} of ${slot.wanted} spot${slot.wanted === 1 ? "" : "s"} open`).join(" · ")}
             </p>
             <form action={volunteer} className="mt-3">
               <input type="hidden" name="meeting_id" value={m.id} />
@@ -262,6 +262,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             current={r?.response ?? null}
             currentNote={r?.note ?? null}
             currentLateBy={r?.late_by_min ?? null}
+            currentLeavingEarly={r?.leaving_early ?? null}
             answerBy={deadline ? `${relativeDay(localParts(deadline, tz()).date)} ${fmtTime(deadline)}` : null}
             closed={!!deadline && deadline <= new Date()}
           />
@@ -315,7 +316,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                     </div>
                   </div>
                   {m.rsvp && !mentor && forMe(m) ? (
-                    <RsvpBadge response={upcomingRsvps.get(m.id)?.response} lateByMin={upcomingRsvps.get(m.id)?.late_by_min} />
+                    <RsvpBadge
+                      response={upcomingRsvps.get(m.id)?.response}
+                      lateByMin={upcomingRsvps.get(m.id)?.late_by_min}
+                      leavingEarly={upcomingRsvps.get(m.id)?.leaving_early}
+                    />
                   ) : !mentor && !forMe(m) ? (
                     <span className="shrink-0 text-xs text-slate-400">{m.open_to_all ? "Open: come if you'd like" : "Not required for you"}</span>
                   ) : null}

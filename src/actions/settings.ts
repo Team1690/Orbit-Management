@@ -32,14 +32,11 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   if (grace === null || grace < 0 || grace > 120) return { error: "Late grace must be 0–120 minutes." };
   if (alertMin === null || alertMin < 1 || alertMin > 120) return { error: "The missing-members alert must be 1–120 minutes after the start." };
   if (rsvpHours === null || rsvpHours < 1 || rsvpHours > 336) return { error: "RSVP window must be 1–336 hours." };
-  if (remindHours === null || remindHours < 0 || remindHours >= rsvpHours) {
-    return { error: `The reminder must be 0 (off) or fewer hours than the RSVP window (${rsvpHours}).` };
+  if (remindHours === null || remindHours < 0 || remindHours > 168) {
+    return { error: "Remind every 1–168 hours, or 0 to turn reminders off." };
   }
   if (closeHours === null || closeHours < 0 || closeHours >= rsvpHours) {
     return { error: `Answers must close 0 (never) or fewer hours before than the RSVP window (${rsvpHours}).` };
-  }
-  if (remindHours > 0 && closeHours > 0 && remindHours <= closeHours) {
-    return { error: "Send the reminder before answers close: more hours before the meeting." };
   }
   if (!TIME_RE.test(autoOut)) return { error: "Auto check-out time must look like 23:00." };
   if (outReminder === null || outReminder < 0 || outReminder > 240) return { error: "The check-out reminder must be 0–240 minutes after the meeting (0 turns it off)." };

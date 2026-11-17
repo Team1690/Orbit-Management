@@ -18,8 +18,8 @@ export function VolunteerFields({
       <summary className="cursor-pointer text-sm font-medium text-brand-700">Ask for volunteers{slots.length ? ` (${slots.length})` : ""}</summary>
       <div className="mt-2 space-y-2 rounded-xl border border-slate-200 p-3">
         <p className="text-xs text-slate-500">
-          Students who aren&apos;t already expected see the request on their home screen and get a notification. They can only say yes;
-          volunteers are then expected like everyone invited and get the meeting&apos;s reminder.
+          Students who aren&apos;t already expected (or mentors, for a Mentors row) see the request on their home screen and get a
+          notification. They can only say yes; volunteers are then expected like everyone invited and get the meeting&apos;s reminder.
         </p>
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2">
@@ -36,6 +36,7 @@ export function VolunteerFields({
             <span className="shrink-0 text-sm text-slate-500">from</span>
             <select name="vol_team" defaultValue={r.team ?? ""} className="input" aria-label={`Row ${i + 1}: from which team`}>
               <option value="">Anyone on the team</option>
+              <option value="mentors">Mentors (any mentor)</option>
               <optgroup label="Subteams">
                 {SUBTEAMS.map((s) => (
                   <option key={s}>{s}</option>

@@ -57,6 +57,8 @@ async function summaryText(m: Meeting) {
           .join(", ")}`
       : ":clock3: *Coming late:* nobody",
   );
+  const leaving = rows.filter(([, e]) => e.rsvp?.leaving_early && e.rsvp.response !== "no").map(([id]) => id).sort(byName);
+  if (leaving.length) lines.push(`:door: *Leaving early (${leaving.length}):* ${leaving.map((id) => escape(names.get(id) ?? "?")).join(", ")}`);
   lines.push(`:white_check_mark: Coming on time: ${coming} · No answer yet: ${noAnswer}`);
   return lines.join("\n");
 }

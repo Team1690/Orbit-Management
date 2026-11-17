@@ -16,20 +16,21 @@ import { openSpots, pickSlot, slotsFor, volunteersFor } from "@/lib/volunteers";
 export async function volunteer(fd: FormData) {
   const user = await requireUser();
   const me = await getMember(user.id);
-  if (!me || me.role === "mentor") return;
+  if (!me) return;
   const meetingId = Number(fd.get("meeting_id"));
 
   await tx(async () => {
     const m = await getMeeting(meetingId);
     if (!m || m.cancelled || m.schedule_id !== null || meetingWindow(m).start <= new Date()) return;
-    if (inAudience(parseAudience(m.audience), me)) return;
+    if (me.role !== "mentor" && inAudience(parseAudience(m.audience), me)) return;
     const slots = (await slotsFor([m.id])).get(m.id) ?? [];
     const volunteers = (await volunteersFor([m.id])).get(m.id) ?? [];
     if (volunteers.some((v) => v.user_id === me.id)) return;
     const slot = pickSlot(me, slots, await openSpots(m.id, slots, volunteers));
     if (!slot) return;
     await run("INSERT INTO volunteers (meeting_id, user_id, team, created_at) VALUES (?, ?, ?, ?)", m.id, me.id, slot.team, new Date().toISOString());
-    if (m.rsvp) await setRsvp(m.id, me.id, "yes", null, null);
+    // Students' volunteering answers the RSVP with "Coming"; mentors don't RSVP.
+    if (m.rsvp && me.role !== "mentor") await setRsvp(m.id, me.id, "yes", null, null);
   });
   revalidatePath("/", "layout");
 }

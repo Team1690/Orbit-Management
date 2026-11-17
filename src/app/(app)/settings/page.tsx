@@ -43,8 +43,11 @@ export default async function SettingsPage() {
           <Field label="Ask for RSVPs (hours before)" hint="When the question appears on members' home screens.">
             <input name="rsvp_open_hours" type="number" min={1} max={336} defaultValue={s.rsvp_open_hours} className="input" />
           </Field>
-          <Field label="Remind who hasn't answered (hours before)" hint="A phone notification for members who turned on reminders. 0 turns it off.">
-            <input name="rsvp_reminder_hours" type="number" min={0} max={335} defaultValue={s.rsvp_reminder_hours} className="input" />
+          <Field
+            label="Remind who hasn't answered every (hours)"
+            hint="A phone notification, repeated this often until they answer or answers close. None between 22:00 and 07:00. 0 turns it off."
+          >
+            <input name="rsvp_reminder_hours" type="number" min={0} max={168} defaultValue={s.rsvp_reminder_hours} className="input" />
           </Field>
           <Field
             label="Close answers (hours before)"

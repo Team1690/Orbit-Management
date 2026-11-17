@@ -42,7 +42,11 @@ export function Scanner() {
       }
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        // High resolution so a code on a far-away screen still has enough pixels to read.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
       } catch {
         setPhase({ kind: "error", message: "Camera access was blocked. Allow camera access for this app in your phone's settings, then try again." });
         return;
@@ -63,6 +67,9 @@ export function Scanner() {
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
+      // The whole frame is searched, so a code anywhere on screen counts. On iPhones (jsQR) every other
+      // try also reads the middle of the frame at full resolution, which catches small or distant codes.
+      let frame = 0;
       const scan = async () => {
         if (cancelled) return;
         let text: string | null = null;
@@ -71,10 +78,16 @@ export function Scanner() {
             if (detector) {
               text = (await detector.detect(video))[0]?.rawValue ?? null;
             } else if (jsQR) {
-              const scale = Math.min(1, 720 / Math.max(video.videoWidth, video.videoHeight));
-              canvas.width = Math.round(video.videoWidth * scale);
-              canvas.height = Math.round(video.videoHeight * scale);
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              const zoom = frame++ % 2 === 1;
+              // Full frame scaled down to 1080 px, or the middle 60% at full size.
+              const sw = zoom ? Math.round(vw * 0.6) : vw;
+              const sh = zoom ? Math.round(vh * 0.6) : vh;
+              const scale = Math.min(1, 1080 / Math.max(sw, sh));
+              canvas.width = Math.round(sw * scale);
+              canvas.height = Math.round(sh * scale);
+              ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
               const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
               text = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" })?.data ?? null;
             }
@@ -149,7 +162,8 @@ export function Scanner() {
       <video ref={videoRef} playsInline muted className="aspect-[3/4] w-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="size-3/5 rounded-3xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+        {/* A large guide: the code can be anywhere inside it (or even outside it). */}
+        <div className="aspect-square w-[85%] rounded-3xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
       </div>
       <div className="absolute inset-x-0 bottom-0 p-4 text-center text-sm font-medium text-white">
         {phase.kind === "starting" && "Starting camera…"}

@@ -4,18 +4,22 @@ import { all, run } from "./db";
 import { fmtTime, relativeDay } from "./format";
 import { meetingWindow, openRsvpMeetings, rsvpDeadline, type Meeting } from "./meetings";
 import { pushToCaptains, pushToUsers, type PushPayload } from "./push";
-import { getSettings } from "./settings";
+import { getSettings, tz } from "./settings";
 import { addDays, localParts } from "./timeutil";
 
 // The RSVP timeline of each meeting with RSVPs, in hours before the start (from Settings):
 //   rsvp_open_hours      members can answer (one-off meetings: from creation); those with
 //                        reminders on get "Will you come?"
-//   rsvp_reminder_hours  members who still haven't answered get a reminder
+//   rsvp_reminder_hours  every this many hours after answers open, members who still haven't
+//                        answered get a reminder (not at night), until answers close
 //   rsvp_close_hours     answers close; captains get the list of who didn't answer
 // Plus each meeting's own reminder (meetings.reminder_hours, set by a captain) for everyone expected.
-// Each step happens once per meeting, claimed in its meetings.*_at column. Called every minute.
+// Each step is claimed in its meetings.*_at column (the reminder's holds the last one sent). Called every minute.
 
 const HOUR = 3_600_000;
+/** No RSVP reminders between these local hours (22:00–07:00); a reminder due at night waits for the morning. */
+const QUIET_START = 22;
+const QUIET_END = 7;
 
 type Step = "rsvp_open_push_at" | "rsvp_reminder_at" | "rsvp_closed_at" | "reminder_sent_at";
 
@@ -58,12 +62,27 @@ export async function sendRsvpNotifications(now = new Date()) {
       continue;
     }
 
-    const reminderDue = rsvp_reminder_hours > 0 && left <= rsvp_reminder_hours * HOUR;
-    if (!m.rsvp_open_push_at && (await claim("rsvp_open_push_at", m, now))) {
-      // A meeting added at short notice is already in the reminder window: this one message covers both.
-      if (reminderDue) await claim("rsvp_reminder_at", m, now);
-      await send("open", m, await notAnswered(m), { title: "Will you come?", body: `${when}. Tap to answer.`, url: "/", tag: `rsvp-${m.id}` });
-    } else if (reminderDue && !m.rsvp_reminder_at && (await claim("rsvp_reminder_at", m, now))) {
+    if (!m.rsvp_open_push_at) {
+      if (await claim("rsvp_open_push_at", m, now)) {
+        await send("open", m, await notAnswered(m), { title: "Will you come?", body: `${when}. Tap to answer.`, url: "/", tag: `rsvp-${m.id}` });
+      }
+      continue;
+    }
+    // Every `rsvp_reminder_hours` since answers opened (or since the last reminder), but not at night.
+    const last = Date.parse(m.rsvp_reminder_at ?? m.rsvp_open_push_at);
+    const hour = Number(localParts(now, tz()).time.slice(0, 2));
+    const reminderDue = rsvp_reminder_hours > 0 && now.getTime() - last >= rsvp_reminder_hours * HOUR && hour >= QUIET_END && hour < QUIET_START;
+    if (
+      reminderDue &&
+      (
+        await run(
+          "UPDATE meetings SET rsvp_reminder_at = ? WHERE id = ? AND rsvp_reminder_at IS NOT DISTINCT FROM ?::text",
+          now.toISOString(),
+          m.id,
+          m.rsvp_reminder_at,
+        )
+      ).changes > 0
+    ) {
       const deadline = rsvpDeadline(m, rsvp_close_hours);
       const by = deadline ? ` Answers close at ${fmtTime(deadline)}.` : "";
       await send("reminder", m, await notAnswered(m), {
@@ -95,7 +114,11 @@ export async function sendMeetingReminders(now = new Date()) {
     if (left <= 0 || left > m.reminder_hours! * HOUR) continue;
     if (!(await claim("reminder_sent_at", m, now))) continue;
     const rows = (await computeAttendance([m])).get(m.id) ?? new Map();
-    const to = [...[...rows].filter(([, e]) => e.rsvp?.response !== "no").map(([id]) => id as number), ...leadMentors];
+    // Mentors who volunteered for it get the reminder too.
+    const mentorVolunteers = (
+      await all<{ user_id: number }>("SELECT v.user_id FROM volunteers v JOIN users u ON u.id = v.user_id WHERE v.meeting_id = ? AND u.role = 'mentor'", m.id)
+    ).map((v) => v.user_id);
+    const to = [...new Set([...[...rows].filter(([, e]) => e.rsvp?.response !== "no").map(([id]) => id as number), ...leadMentors, ...mentorVolunteers])];
     await send("meeting reminder", m, to, {
       title: `Reminder: ${m.title}`,
       body: `${relativeDay(m.date)} ${fmtTime(start)}–${fmtTime(end)}. See you there!`,

@@ -2,7 +2,7 @@ import { inAudience, parseAudience } from "./audience";
 import { all, run } from "./db";
 import { fmtTime, relativeDay } from "./format";
 import { meetingWindow, type Meeting } from "./meetings";
-import { listStudents, type Member } from "./members";
+import { listMembers, type Member } from "./members";
 import { pushToUsers } from "./push";
 import { today } from "./periods";
 
@@ -12,7 +12,15 @@ import { today } from "./periods";
 // "Coming", the meeting's reminder). If spots are still open `volunteer_reask_hours` after the first
 // ask, everyone who could still fill one is asked again. Called on creation and every minute.
 
-/** A request for `wanted` volunteers from one team; team null = anyone on the team. */
+/** A slot for mentors (any mentor or lead mentor) instead of students. */
+export const MENTOR_SLOT = "mentors";
+
+/** "Mechanical", "Anyone on the team" or "Mentors". */
+export function slotLabel(team: string | null) {
+  return team === null ? "Anyone on the team" : team === MENTOR_SLOT ? "Mentors" : team;
+}
+
+/** A request for `wanted` volunteers from one team; team null = any student, MENTOR_SLOT = any mentor. */
 export type VolunteerSlot = { id: number; meeting_id: number; team: string | null; wanted: number };
 /** team: the slot they filled. */
 export type Volunteer = { meeting_id: number; user_id: number; team: string | null; created_at: string };
@@ -39,9 +47,18 @@ export async function volunteersFor(meetingIds: number[]) {
   return byMeeting(await all<Volunteer>(`SELECT * FROM volunteers WHERE meeting_id IN (${inList(meetingIds.length)}) ORDER BY created_at`, ...meetingIds));
 }
 
-/** Whether a student can fill a slot: anyone for a whole-team slot, otherwise on that subteam or team. */
-export function fitsSlot(slot: Pick<VolunteerSlot, "team">, member: Pick<Member, "subteam" | "teams">) {
+type Person = Pick<Member, "role" | "subteam" | "teams">;
+
+/** Whether someone can fill a slot: mentors fill mentor slots; students fill whole-team slots or their own team's. */
+export function fitsSlot(slot: Pick<VolunteerSlot, "team">, member: Person) {
+  if (slot.team === MENTOR_SLOT) return member.role === "mentor";
+  if (member.role === "mentor") return false;
   return slot.team === null || member.subteam === slot.team || member.teams.includes(slot.team);
+}
+
+/** Already expected at the meeting (students in its audience): they aren't asked to volunteer. Mentors never are. */
+function isExpected(m: Meeting, member: Member) {
+  return member.role !== "mentor" && inAudience(parseAudience(m.audience), member);
 }
 
 /** Spots still open in each slot: volunteers who later said they can't come free theirs again. */
@@ -55,7 +72,7 @@ export async function openSpots(meetingId: number, slots: VolunteerSlot[], volun
 }
 
 /** The slot a student would fill: their own team's first, then anyone. Null when nothing open fits. */
-export function pickSlot(member: Pick<Member, "subteam" | "teams">, slots: VolunteerSlot[], open: Map<number, number>) {
+export function pickSlot(member: Person, slots: VolunteerSlot[], open: Map<number, number>) {
   const fitting = slots.filter((s) => fitsSlot(s, member) && (open.get(s.id) ?? 0) > 0);
   return fitting.find((s) => s.team !== null) ?? fitting[0] ?? null;
 }
@@ -71,11 +88,10 @@ export function volunteerMeetings(fromDate = today()) {
   );
 }
 
-/** Students who could still fill an open spot: not expected already, not volunteering, on a fitting team. */
-export function askable(m: Meeting, students: Member[], slots: VolunteerSlot[], volunteers: Volunteer[], open: Map<number, number>) {
-  const audience = parseAudience(m.audience);
+/** People (active members and mentors) who could still fill an open spot: not expected already, not volunteering, fitting a slot. */
+export function askable(m: Meeting, people: Member[], slots: VolunteerSlot[], volunteers: Volunteer[], open: Map<number, number>) {
   const taken = new Set(volunteers.map((v) => v.user_id));
-  return students.filter((s) => !taken.has(s.id) && !inAudience(audience, s) && !!pickSlot(s, slots, open));
+  return people.filter((s) => !taken.has(s.id) && !isExpected(m, s) && !!pickSlot(s, slots, open));
 }
 
 const HOUR = 3_600_000;
@@ -84,7 +100,7 @@ const HOUR = 3_600_000;
 export async function sendVolunteerAsks(now = new Date()) {
   const meetings = (await volunteerMeetings()).filter((m) => meetingWindow(m).start > now);
   if (meetings.length === 0) return;
-  const students = await listStudents();
+  const people = await listMembers();
   const slotMap = await slotsFor(meetings.map((m) => m.id));
   const volunteerMap = await volunteersFor(meetings.map((m) => m.id));
 
@@ -102,7 +118,7 @@ export async function sendVolunteerAsks(now = new Date()) {
     const volunteers = volunteerMap.get(m.id) ?? [];
     const open = await openSpots(m.id, slots, volunteers);
     const spots = [...open.values()].reduce((a, b) => a + b, 0);
-    const to = askable(m, students, slots, volunteers, open).map((s) => s.id);
+    const to = askable(m, people, slots, volunteers, open).map((s) => s.id);
     if (spots === 0 || to.length === 0) continue;
 
     const { start, end } = meetingWindow(m);
@@ -115,7 +131,7 @@ export async function sendVolunteerAsks(now = new Date()) {
       console.error("[orbit] volunteer request push failed", err);
       return 0;
     });
-    console.info(`[orbit] volunteer ${again ? "re-ask" : "ask"} for meeting ${m.id}: ${to.length} students, sent to ${sent} devices`);
+    console.info(`[orbit] volunteer ${again ? "re-ask" : "ask"} for meeting ${m.id}: ${to.length} people, sent to ${sent} devices`);
   }
 }
 
@@ -124,7 +140,7 @@ export async function sendVolunteerAsks(now = new Date()) {
  * volunteering for, with the open slots that fit them.
  */
 export async function requestsFor(member: Member, now = new Date()) {
-  const meetings = (await volunteerMeetings()).filter((m) => meetingWindow(m).start > now && !inAudience(parseAudience(m.audience), member));
+  const meetings = (await volunteerMeetings()).filter((m) => meetingWindow(m).start > now && !isExpected(m, member));
   const slotMap = await slotsFor(meetings.map((m) => m.id));
   const volunteerMap = await volunteersFor(meetings.map((m) => m.id));
   const out: { meeting: Meeting; open: { slot: VolunteerSlot; left: number }[] }[] = [];

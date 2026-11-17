@@ -37,21 +37,18 @@ export async function checkMissingAlerts(now = new Date()) {
     const names = new Map((await all<{ id: number; name: string }>("SELECT id, name FROM users")).map((u) => [u.id, u.name]));
     const name = (id: number) => names.get(id) ?? "?";
     const missing = rows.filter(([, e]) => e.status === "missing");
+    // Those who said in advance they can't come or will be late aren't expected yet, so they're left out.
     const noNotice = missing.filter(([, e]) => !e.notice).map(([id]) => name(id));
-    const notified = missing.filter(([, e]) => e.notice).map(([id]) => name(id));
+    const expected = rows.filter(([, e]) => !(e.status === "missing" && e.notice)).length;
     const late = rows
       .filter(([, e]) => e.status === "late" && e.firstIn)
       .map(([id, e]) => `${name(id)} (${fmtTime(e.firstIn!)})`);
 
-    const title = missing.length
-      ? `${missing.length} not checked in · ${m.title} ${fmtTime(start)}`
-      : `Everyone checked in · ${m.title} ${fmtTime(start)}`;
-    const parts = [
-      noNotice.length && `No notice: ${nameList(noNotice)}.`,
-      notified.length && `Gave notice: ${nameList(notified)}.`,
-      late.length && `Late: ${nameList(late)}.`,
-    ].filter(Boolean);
-    const body = parts.join(" ") || `All ${rows.length} students are here.`;
+    const title = noNotice.length
+      ? `${noNotice.length} not checked in · ${m.title} ${fmtTime(start)}`
+      : `Everyone expected checked in · ${m.title} ${fmtTime(start)}`;
+    const parts = [noNotice.length && `Not here, no notice: ${nameList(noNotice)}.`, late.length && `Late: ${nameList(late)}.`].filter(Boolean);
+    const body = parts.join(" ") || `All ${expected} expected students are here.`;
 
     await run("INSERT INTO alerts (kind, meeting_id, title, body, created_at) VALUES ('missing', ?, ?, ?, ?)", m.id, title, body, now.toISOString());
     // Awaited: a serverless host may pause the server as soon as the request that ran this tick ends.

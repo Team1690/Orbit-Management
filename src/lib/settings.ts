@@ -10,7 +10,7 @@ export type Settings = {
   missing_alert_min: number;
   /** How many hours before a meeting members are asked to RSVP. */
   rsvp_open_hours: number;
-  /** Hours before a meeting when members who haven't answered get a reminder (0 = off). */
+  /** Members who haven't answered get a reminder every this many hours until answers close (0 = off). */
   rsvp_reminder_hours: number;
   /** Hours before a meeting when answers close and captains get the list of who didn't answer (0 = no deadline). */
   rsvp_close_hours: number;

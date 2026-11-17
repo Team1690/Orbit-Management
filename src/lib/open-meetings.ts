@@ -2,7 +2,7 @@ import { computeAttendance } from "./attendance";
 import { all, run } from "./db";
 import { fmtTime, relativeDay } from "./format";
 import { meetingWindow, type Meeting } from "./meetings";
-import { listStudents } from "./members";
+import { listMembers } from "./members";
 import { today } from "./periods";
 import { pushToUsers } from "./push";
 import { askable, openSpots, slotsFor, volunteersFor } from "./volunteers";
@@ -25,7 +25,7 @@ export async function sendOpenMeetingFyi(now = new Date()) {
     const asked = new Set<number>();
     if (slots.length) {
       const volunteers = (await volunteersFor([m.id])).get(m.id) ?? [];
-      for (const s of askable(m, await listStudents(), slots, volunteers, await openSpots(m.id, slots, volunteers))) asked.add(s.id);
+      for (const s of askable(m, await listMembers(), slots, volunteers, await openSpots(m.id, slots, volunteers))) asked.add(s.id);
     }
     const everyone = (await all<{ id: number }>("SELECT id FROM users WHERE active = 1")).map((u) => u.id);
     const loud = m.rsvp ? [] : everyone.filter((id) => expected.has(id));

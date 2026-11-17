@@ -37,7 +37,9 @@ export async function respondRsvp(_: FormState, fd: FormData): Promise<FormState
     }
   }
 
-  await setRsvp(meeting.id, user.id, response, response === "yes" ? null : note, response === "late" ? lateBy : null);
+  const leavingEarly = response !== "no" && fd.get("leave_early") ? str(fd, "leave_note").slice(0, 200) : null;
+  if (leavingEarly === "") return { error: "Say briefly why you're leaving early (and when)." };
+  await setRsvp(meeting.id, user.id, response, response === "yes" ? null : note, response === "late" ? lateBy : null, null, null, leavingEarly);
   revalidatePath("/", "layout");
   return { message: "Thanks, your answer was saved." };
 }

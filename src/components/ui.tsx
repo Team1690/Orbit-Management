@@ -104,9 +104,19 @@ export function AttendanceBadge({ entry }: { entry: Pick<AttendanceEntry, "statu
   }
 }
 
-export function RsvpBadge({ response, lateByMin }: { response: "yes" | "late" | "no" | undefined | null; lateByMin?: number | null }) {
-  if (response === "yes") return <Badge tone="green">Coming</Badge>;
-  if (response === "late") return <Badge tone="yellow">{lateByMin ? `Late · ${lateByLabel(lateByMin)}` : "Coming late"}</Badge>;
+export function RsvpBadge({
+  response,
+  lateByMin,
+  leavingEarly,
+}: {
+  response: "yes" | "late" | "no" | undefined | null;
+  lateByMin?: number | null;
+  /** Their reason for leaving early, if they are. */
+  leavingEarly?: string | null;
+}) {
+  const leaves = leavingEarly && response !== "no" ? " · leaves early" : "";
+  if (response === "yes") return <Badge tone="green">Coming{leaves}</Badge>;
+  if (response === "late") return <Badge tone="yellow">{lateByMin ? `Late · ${lateByLabel(lateByMin)}` : "Coming late"}{leaves}</Badge>;
   if (response === "no") return <Badge tone="red">Can&apos;t come</Badge>;
   return <Badge>No answer</Badge>;
 }
