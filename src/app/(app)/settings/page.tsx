@@ -55,14 +55,17 @@ export default async function SettingsPage() {
           >
             <input name="rsvp_close_hours" type="number" min={0} max={335} defaultValue={s.rsvp_close_hours} className="input" />
           </Field>
-          <Field label="Automatic check-out time" hint="Anyone still checked in is checked out at this time and credited until their meeting ended.">
-            <TimeInput name="auto_checkout_time" defaultValue={s.auto_checkout_time} />
+          <Field
+            label="Remind who's still checked in every (hours)"
+            hint="After the day's last meeting ends, captains and subteam leads get who still needs checking out, this often. 0 turns it off."
+          >
+            <input name="checkout_remind_every_hours" type="number" min={0} max={24} defaultValue={s.checkout_remind_every_hours} className="input" />
           </Field>
           <Field
-            label="Remind to check out (minutes after the meeting ends)"
-            hint="Everyone still checked in gets a notification this long after each meeting ends. 0 turns it off."
+            label="Mark as left without checking out after (hours)"
+            hint="This long after the meeting ends, anyone still checked in is checked out at the meeting's end time and marked as not checked out. Captains and subteam leads get the list."
           >
-            <input name="checkout_reminder_min" type="number" min={0} max={240} defaultValue={s.checkout_reminder_min} className="input" />
+            <input name="missed_checkout_hours" type="number" min={1} max={48} defaultValue={s.missed_checkout_hours} className="input" />
           </Field>
           <Field label="Create meetings (days ahead)">
             <input name="schedule_days_ahead" type="number" min={7} max={90} defaultValue={s.schedule_days_ahead} className="input" />

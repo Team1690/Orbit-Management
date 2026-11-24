@@ -14,10 +14,10 @@ export type Settings = {
   rsvp_reminder_hours: number;
   /** Hours before a meeting when answers close and captains get the list of who didn't answer (0 = no deadline). */
   rsvp_close_hours: number;
-  /** Local time (HH:MM) when anyone still checked in is checked out automatically. */
-  auto_checkout_time: string;
-  /** Minutes after a meeting ends when everyone still checked in is reminded to check out (0 = off). */
-  checkout_reminder_min: number;
+  /** Every this many hours after the day's last meeting ends, captains and subteam leads get who's still checked in (0 = off). */
+  checkout_remind_every_hours: number;
+  /** This many hours after the day's last meeting ends, anyone still checked in is marked "left without checking out". */
+  missed_checkout_hours: number;
   /** How many days ahead meetings are created from the weekly schedule. */
   schedule_days_ahead: number;
   /** How often the check-in QR code changes, in minutes. */
@@ -46,8 +46,8 @@ const DEFAULTS: Omit<Settings, "qr_secret" | "display_key"> = {
   rsvp_open_hours: 72,
   rsvp_reminder_hours: 24,
   rsvp_close_hours: 6,
-  auto_checkout_time: "23:00",
-  checkout_reminder_min: 15,
+  checkout_remind_every_hours: 1,
+  missed_checkout_hours: 4,
   schedule_days_ahead: 21,
   qr_rotate_min: 1,
   flag_absences: 3,
@@ -66,7 +66,8 @@ const NUMERIC = new Set([
   "flag_absences",
   "flag_lates",
   "slack_lead_hours",
-  "checkout_reminder_min",
+  "checkout_remind_every_hours",
+  "missed_checkout_hours",
 ]);
 
 // The last settings read, so tz() can stay synchronous for the date helpers. Refreshed by every

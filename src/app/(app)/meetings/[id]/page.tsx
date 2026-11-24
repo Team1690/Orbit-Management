@@ -233,6 +233,7 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
                       <td className="whitespace-nowrap tabular-nums">
                         {e.firstIn ? fmtTime(e.firstIn) : <span className="text-slate-400">—</span>}
                         {e.firstIn && e.status === "late" && <span className="ml-1.5 text-xs font-semibold text-amber-700">+{minutesLate(e.firstIn, start)} min</span>}
+                        {e.missedCheckout && <div className="text-xs font-medium text-rose-600">Not checked out</div>}
                       </td>
                       <td>
                         <AttendanceBadge entry={e} />

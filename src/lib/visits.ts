@@ -8,8 +8,9 @@ export type Visit = {
   user_id: number;
   check_in: string;
   check_out: string | null;
-  in_method: "qr" | "manual" | "self";
-  out_method: "self" | "auto" | "manual" | null;
+  in_method: "qr" | "manual" | "self" | "rsvp";
+  /** auto: the old end-of-day check-out; rsvp: a meeting without check-in; missed: left without being checked out. */
+  out_method: "self" | "auto" | "manual" | "rsvp" | "missed" | null;
   /** Who last edited the times: a captain, or the person themselves (mentors). */
   edited_by: number | null;
 };

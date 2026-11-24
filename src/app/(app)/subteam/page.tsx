@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { leadCheckOut } from "@/actions/presence";
+import { SubmitButton } from "@/components/client";
 import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
 import { AttendanceBadge, Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { computeAttendance, summaryFor, totalsFrom, type AttendanceEntry } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth";
-import { fmtDate, pct } from "@/lib/format";
+import { fmtDate, fmtTime, pct } from "@/lib/format";
 import { meetingWindow, meetingsBetween, type Meeting } from "@/lib/meetings";
 import { getMember, listStudents } from "@/lib/members";
 import { currentPeriod, today } from "@/lib/periods";
 import { getSettings } from "@/lib/settings";
 import { addDays } from "@/lib/timeutil";
+import { presentNow } from "@/lib/visits";
 
 export const metadata: Metadata = { title: "My subteam" };
 
@@ -44,6 +47,7 @@ export default async function SubteamPage() {
   const [period, settings, students] = await Promise.all([currentPeriod(), getSettings(), listStudents()]);
   const team = students.filter((s) => s.subteam === me.subteam);
   const ids = team.map((s) => s.id);
+  const here = (await presentNow()).filter((p) => p.role !== "mentor" && p.subteam === me.subteam);
   const from = period.startDate < monthStart ? period.startDate : monthStart;
   const past = await meetingsBetween(from, t, false);
 
@@ -77,7 +81,32 @@ export default async function SubteamPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title={me.subteam} subtitle={`${team.length} members · view only`} />
+      <PageHeader title={me.subteam} subtitle={`${team.length} members`} />
+
+      <Card title={`At school now (${here.length})`}>
+        {here.length === 0 ? (
+          <Empty>Nobody from {me.subteam} is checked in.</Empty>
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-slate-500">Members can&apos;t check themselves out: check them out when they leave.</p>
+            <ul className="divide-y divide-slate-100">
+              {here.map((p) => (
+                <li key={p.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0 truncate">
+                    {p.name} <span className="text-xs text-slate-500">since {fmtTime(p.check_in)}</span>
+                  </span>
+                  <form action={leadCheckOut}>
+                    <input type="hidden" name="user_id" value={p.user_id} />
+                    <SubmitButton className="btn btn-secondary btn-sm" pendingText="…">
+                      Check out
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
 
       <SubteamNextMeeting subteam={me.subteam} />
 

@@ -4,38 +4,13 @@ import { ensureScheduledMeetings, meetingWindow, meetingsOn } from "./meetings";
 import { sendMeetingReminders, sendRsvpNotifications } from "./rsvp-reminders";
 import { sendVolunteerAsks } from "./volunteers";
 import { sendOpenMeetingFyi } from "./open-meetings";
-import { sendCheckoutReminders } from "./checkout-reminders";
+import { sendCheckoutFollowUps } from "./checkout-reminders";
 import { createRsvpVisits } from "./rsvp-visits";
 import { applyAbsencesToNewMeetings } from "./absences";
 import { getSettings } from "./settings";
 import { sendMeetingSummaries } from "./slack";
 import { addDays, localParts, zonedToUtc } from "./timeutil";
 import { type Visit } from "./visits";
-
-/**
- * Checks out anyone still checked in after the daily cut-off. They are credited until the
- * end of that day's last meeting if they were there for it, otherwise until the cut-off.
- * These visits are marked "auto" so captains can review them.
- */
-export async function autoCheckout(now = new Date()) {
-  const { timezone, auto_checkout_time } = await getSettings();
-  for (const v of await all<Visit>("SELECT * FROM visits WHERE check_out IS NULL")) {
-    const checkIn = new Date(v.check_in);
-    const day = localParts(checkIn, timezone).date;
-    let cutoff = zonedToUtc(day, auto_checkout_time, timezone);
-    if (cutoff <= checkIn) cutoff = zonedToUtc(addDays(day, 1), auto_checkout_time, timezone);
-    if (now < cutoff) continue;
-
-    let credit = cutoff;
-    let lastMeetingEnd: Date | null = null;
-    for (const m of await meetingsOn(day)) {
-      const { end } = meetingWindow(m);
-      if (end > checkIn && end <= cutoff && (!lastMeetingEnd || end > lastMeetingEnd)) lastMeetingEnd = end;
-    }
-    if (lastMeetingEnd) credit = lastMeetingEnd;
-    await run("UPDATE visits SET check_out = ?, out_method = 'auto' WHERE id = ? AND check_out IS NULL", credit.toISOString(), v.id);
-  }
-}
 
 let lastTick = 0;
 
@@ -54,8 +29,7 @@ export async function runTick(force = false) {
   await checkMissingAlerts(new Date(now));
   await sendMeetingSummaries(new Date(now));
   await createRsvpVisits(new Date(now));
-  await sendCheckoutReminders(new Date(now));
-  await autoCheckout(new Date(now));
+  await sendCheckoutFollowUps(new Date(now));
   await run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
 }
 

@@ -24,6 +24,8 @@ export type AttendanceEntry = {
   rsvp: Rsvp | null;
   overridden: boolean;
   overrideNote: string | null;
+  /** Their visit for this meeting was closed as "left without checking out". */
+  missedCheckout: boolean;
 };
 
 type Override = { meeting_id: number; user_id: number; status: "present" | "late" | "absent"; notice: number; note: string | null };
@@ -88,10 +90,12 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
       const rsvp = rsvps.get(key) ?? null;
 
       let firstIn: number | null = null;
+      let missedCheckout = false;
       for (const v of visitsByUser.get(member.id) ?? []) {
         const vin = Date.parse(v.check_in);
         const vout = v.check_out ? Date.parse(v.check_out) : now;
         if (vin < end.getTime() && vout > start.getTime() && (firstIn === null || vin < firstIn)) firstIn = vin;
+        if (vin < end.getTime() && vout > start.getTime() && v.out_method === "missed") missedCheckout = true;
       }
 
       const override = overrides.get(key);
@@ -120,6 +124,7 @@ export async function computeAttendance(meetings: Meeting[], memberIds?: number[
         firstIn: firstIn === null ? null : new Date(firstIn).toISOString(),
         rsvp,
         overridden: !!override,
+        missedCheckout,
         overrideNote: override?.note ?? null,
       });
     }

@@ -23,7 +23,12 @@ import { upcomingAbsences } from "@/lib/absences";
 
 export const metadata: Metadata = { title: "Member" };
 
-const METHOD_LABEL: Record<string, string> = { auto: "auto check-out", manual: "edited by captain", rsvp: "from RSVP, no check-in" };
+const METHOD_LABEL: Record<string, string> = {
+  auto: "auto check-out",
+  manual: "edited by captain",
+  rsvp: "from RSVP, no check-in",
+  missed: "left without checking out",
+};
 
 function Detail({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -69,6 +74,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
       .map((mt) => mt.id),
   );
   const absences = await upcomingAbsences(id);
+  const missedCheckouts = started.filter((mt) => attendance.get(mt.id)?.get(id)?.missedCheckout).length;
   const visit = await openVisit(id);
   const visits = await recentVisits(id, 15);
   const notes = await notesFor(id);
@@ -142,6 +148,7 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                 <>
                   {s.present + s.late} of {s.meetings} meetings · {s.late} late ·{" "}
                   <span className={cameWithoutRsvp.size ? "font-medium text-rose-600" : ""}>{cameWithoutRsvp.size} checked in without answering the RSVP</span>
+                  {missedCheckouts > 0 && <span className="font-medium text-rose-600"> · {missedCheckouts} left without checking out</span>}
                 </>
               }
               tone={s.rate === null ? "default" : s.rate >= 0.85 ? "good" : s.rate >= 0.7 ? "warn" : "bad"}
@@ -202,11 +209,12 @@ export default async function MemberPage({ params }: PageProps<"/members/[id]">)
                         <Link href={`/meetings/${mt.id}`} className="text-sm font-medium hover:underline">
                           {mt.title} · {fmtDate(mt.date)}
                         </Link>
-                        <div className="truncate text-xs text-slate-500">
+                        <div className="line-clamp-2 text-xs text-slate-500">
                           {e?.firstIn ? `Arrived ${fmtTime(e.firstIn)}` : "No check-in"}
                           {e?.rsvp && e.rsvp.response !== "yes" && rsvpDetail(e.rsvp) && ` · "${rsvpDetail(e.rsvp)}"`}
                           {e?.overridden && " · set by captain"}
                           {cameWithoutRsvp.has(mt.id) && <span className="font-medium text-rose-600"> · didn&apos;t answer the RSVP</span>}
+                          {e?.missedCheckout && <span className="font-medium text-rose-600"> · left without checking out</span>}
                         </div>
                       </div>
                       <AttendanceBadge entry={e} />

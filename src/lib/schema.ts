@@ -292,6 +292,14 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE rsvps ADD COLUMN leaving_early TEXT;
   `,
+
+  // 14: no automatic check-out. Visits still open long after the meeting are closed as 'missed' ("left
+  // without checking out"); checkout_reminders counts the reminders sent to captains and subteam leads.
+  `
+  ALTER TABLE visits DROP CONSTRAINT IF EXISTS visits_out_method_check;
+  ALTER TABLE visits ADD CONSTRAINT visits_out_method_check CHECK (out_method IN ('self', 'auto', 'manual', 'rsvp', 'missed'));
+  ALTER TABLE visits ADD COLUMN checkout_reminders INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

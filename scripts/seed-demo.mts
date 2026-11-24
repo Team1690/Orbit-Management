@@ -178,7 +178,7 @@ await db.transaction(async (q) => {
       if (live) {
         await insertVisit(m.id, iso(arrive), null, "qr", null);
       } else {
-        await insertVisit(m.id, iso(arrive), iso(forgot ? end : leave), "qr", forgot ? "auto" : "self");
+        await insertVisit(m.id, iso(arrive), iso(forgot ? end : leave), "qr", forgot ? "missed" : "self");
       }
     }
   }

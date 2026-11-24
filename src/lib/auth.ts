@@ -50,6 +50,11 @@ export function isStaff(user: Pick<SessionUser, "role" | "lead_mentor"> | null |
   return !!user && (user.role === "captain" || (user.role === "mentor" && !!user.lead_mentor));
 }
 
+/** Who can check themselves out: mentors, captains and lead mentors, and subteam leads. Members can't. */
+export function canCheckOutSelf(user: Pick<SessionUser, "role" | "lead_mentor" | "subteam_lead">) {
+  return user.role === "mentor" || isStaff(user) || (user.role === "member" && !!user.subteam_lead);
+}
+
 export async function requireStaff(): Promise<SessionUser> {
   const user = await requireUser();
   if (!isStaff(user)) redirect("/");

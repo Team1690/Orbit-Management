@@ -10,7 +10,7 @@ import { ReminderPrompt } from "@/components/push-toggle";
 import { AttendanceBadge, Avatar, Badge, Banner, Card, Empty, RsvpBadge, Stat } from "@/components/ui";
 import { VisitRow } from "@/components/visit-row";
 import { computeAttendance, summarize, summaryFor } from "@/lib/attendance";
-import { requireUser } from "@/lib/auth";
+import { canCheckOutSelf, requireUser } from "@/lib/auth";
 import { firstName, fmtDate, fmtDay, fmtDuration, fmtHours, fmtTime, pct, relativeDay } from "@/lib/format";
 import { audienceLabel, inAudience, parseAudience } from "@/lib/audience";
 import { meetingWindow, meetingsBetween, openRsvpMeetings, rsvpDeadline, rsvpsFor, type Meeting } from "@/lib/meetings";
@@ -108,11 +108,15 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               Since {fmtTime(visit.check_in)} · {fmtDuration(Date.now() - Date.parse(visit.check_in))}
             </div>
           </div>
-          <form action={checkOutSelf}>
-            <SubmitButton className="btn btn-secondary" pendingText="…">
-              Check out
-            </SubmitButton>
-          </form>
+          {canCheckOutSelf(user) ? (
+            <form action={checkOutSelf}>
+              <SubmitButton className="btn btn-secondary" pendingText="…">
+                Check out
+              </SubmitButton>
+            </form>
+          ) : (
+            <span className="max-w-32 text-right text-xs text-emerald-800">A captain or your subteam lead checks you out</span>
+          )}
         </div>
       ) : mentor ? (
         <div className="card card-pad flex items-center gap-4">
@@ -369,7 +373,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                   key={v.id}
                   label={`${fmtDay(v.check_in)} · ${fmtTime(v.check_in)}–${v.check_out ? fmtTime(v.check_out) : "now"}`}
                   duration={fmtDuration((v.check_out ? Date.parse(v.check_out) : Date.now()) - Date.parse(v.check_in))}
-                  method={v.out_method === "auto" ? "auto check-out" : null}
+                  method={v.out_method === "auto" ? "auto check-out" : v.out_method === "missed" ? "not checked out" : null}
                   date={inLocal.date}
                   inTime={inLocal.time}
                   outTime={outLocal?.time ?? ""}
@@ -386,6 +390,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                 <span>
                   {fmtDay(v.check_in)} · {fmtTime(v.check_in)}–{v.check_out ? fmtTime(v.check_out) : "now"}
                   {v.out_method === "auto" && <span className="ml-1 text-xs text-amber-600">(auto check-out)</span>}
+                  {v.out_method === "missed" && <span className="ml-1 text-xs font-medium text-rose-600">(left without checking out)</span>}
                 </span>
                 <span className="font-medium tabular-nums">
                   {fmtDuration((v.check_out ? Date.parse(v.check_out) : Date.now()) - Date.parse(v.check_in))}

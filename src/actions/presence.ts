@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getUser, requireStaff, requireUser } from "@/lib/auth";
+import { canCheckOutSelf, getUser, isStaff, requireStaff, requireUser } from "@/lib/auth";
+import { getMember } from "@/lib/members";
 import { all } from "@/lib/db";
 import { fmtTime } from "@/lib/format";
 import { extractCode, verifyQrCode } from "@/lib/qr";
@@ -34,7 +35,22 @@ export async function mentorCheckIn() {
 
 export async function checkOutSelf() {
   const user = await requireUser();
+  if (!canCheckOutSelf(user)) return;
   await checkOut(user.id, "self");
+  revalidatePath("/", "layout");
+}
+
+/** A subteam lead checks out someone on their own subteam (captains and lead mentors can check out anyone). */
+export async function leadCheckOut(fd: FormData) {
+  const user = await requireUser();
+  const userId = Number(fd.get("user_id"));
+  if (!userId) return;
+  if (!isStaff(user)) {
+    if (user.role !== "member" || !user.subteam_lead) return;
+    const [lead, target] = await Promise.all([getMember(user.id), getMember(userId)]);
+    if (!lead?.subteam || !target || target.role === "mentor" || target.subteam !== lead.subteam) return;
+  }
+  await checkOut(userId, "manual");
   revalidatePath("/", "layout");
 }
 
