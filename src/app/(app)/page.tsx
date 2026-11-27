@@ -22,7 +22,7 @@ import { getSettings, tz } from "@/lib/settings";
 import { runTick } from "@/lib/tick";
 import { requestsFor, slotLabel, volunteeredMeetingIds } from "@/lib/volunteers";
 import { addDays, localParts } from "@/lib/timeutil";
-import { openVisit, recentVisits, userHours } from "@/lib/visits";
+import { memberCheckoutFrom, openVisit, recentVisits, userHours } from "@/lib/visits";
 import { RsvpCard } from "./rsvp-card";
 
 const FLASH = {
@@ -38,6 +38,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const flash = typeof ci === "string" && ci in FLASH ? FLASH[ci as keyof typeof FLASH] : null;
 
   const visit = await openVisit(user.id);
+  // Members check themselves out once the meeting has been over for a while; before that, they ask to be excused.
+  const checkoutFrom = visit && !canCheckOutSelf(user) ? await memberCheckoutFrom(visit) : null;
+  const canCheckOut = !!visit && (!checkoutFrom || checkoutFrom <= new Date());
   const period = await currentPeriod();
   const week = thisWeek();
   const periodHours = await userHours(user.id, period.from, period.to);
@@ -108,7 +111,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               Since {fmtTime(visit.check_in)} · {fmtDuration(Date.now() - Date.parse(visit.check_in))}
             </div>
           </div>
-          {canCheckOutSelf(user) ? (
+          {canCheckOut ? (
             <form action={checkOutSelf}>
               <SubmitButton className="btn btn-secondary" pendingText="…">
                 Check out
@@ -127,11 +130,14 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
               </form>
             </div>
           ) : (
-            <form action={askToLeave} className="shrink-0">
-              <SubmitButton className="btn btn-secondary" pendingText="…">
-                Ask to be excused
-              </SubmitButton>
-            </form>
+            <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+              <form action={askToLeave}>
+                <SubmitButton className="btn btn-secondary" pendingText="…">
+                  Ask to be excused
+                </SubmitButton>
+              </form>
+              {checkoutFrom && <span className="text-[11px] text-emerald-800">or check out yourself from {fmtTime(checkoutFrom)}</span>}
+            </div>
           )}
         </div>
       ) : mentor ? (

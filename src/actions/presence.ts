@@ -7,7 +7,7 @@ import { all, run } from "@/lib/db";
 import { notifyExcused, notifyLeaveRequest } from "@/lib/leave-requests";
 import { fmtTime } from "@/lib/format";
 import { extractCode, verifyQrCode } from "@/lib/qr";
-import { checkIn, checkOut, excuse, openVisit } from "@/lib/visits";
+import { checkIn, checkOut, excuse, memberCheckoutFrom, openVisit } from "@/lib/visits";
 
 export type ScanResult = { ok: boolean; message: string };
 
@@ -36,7 +36,11 @@ export async function mentorCheckIn() {
 
 export async function checkOutSelf() {
   const user = await requireUser();
-  if (!canCheckOutSelf(user)) return;
+  if (!canCheckOutSelf(user)) {
+    // Members: only once the meeting has been over for a while (Settings).
+    const visit = await openVisit(user.id);
+    if (!visit || new Date() < (await memberCheckoutFrom(visit))) return;
+  }
   await checkOut(user.id, "self");
   revalidatePath("/", "layout");
 }

@@ -14,6 +14,8 @@ export type Settings = {
   rsvp_reminder_hours: number;
   /** Hours before a meeting when answers close and captains get the list of who didn't answer (0 = no deadline). */
   rsvp_close_hours: number;
+  /** Members can check themselves out this many minutes after their meeting ends; before that they ask to be excused. */
+  member_self_checkout_min: number;
   /** Every this many hours after the day's last meeting ends, captains and subteam leads get who's still checked in (0 = off). */
   checkout_remind_every_hours: number;
   /** This many hours after the day's last meeting ends, anyone still checked in is marked "left without checking out". */
@@ -46,6 +48,7 @@ const DEFAULTS: Omit<Settings, "qr_secret" | "display_key"> = {
   rsvp_open_hours: 72,
   rsvp_reminder_hours: 24,
   rsvp_close_hours: 6,
+  member_self_checkout_min: 15,
   checkout_remind_every_hours: 1,
   missed_checkout_hours: 4,
   schedule_days_ahead: 21,
@@ -66,6 +69,7 @@ const NUMERIC = new Set([
   "flag_absences",
   "flag_lates",
   "slack_lead_hours",
+  "member_self_checkout_min",
   "checkout_remind_every_hours",
   "missed_checkout_hours",
 ]);

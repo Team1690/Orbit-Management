@@ -1,7 +1,8 @@
 import { all, one, run, tx } from "./db";
 import { DATE_RE, TIME_RE, str } from "./forms";
-import { tz } from "./settings";
-import { addDays, zonedToUtc } from "./timeutil";
+import { meetingWindow, meetingsOn } from "./meetings";
+import { getSettings, tz } from "./settings";
+import { addDays, localParts, zonedToUtc } from "./timeutil";
 
 export type Visit = {
   id: number;
@@ -61,6 +62,19 @@ export async function checkOut(userId: number, method: NonNullable<Visit["out_me
   const out = new Date(Math.max(at.getTime(), Date.parse(open.check_in)));
   await run("UPDATE visits SET check_out = ?, out_method = ? WHERE id = ?", out.toISOString(), method, open.id);
   return open;
+}
+
+/**
+ * When a member may check themselves out: `member_self_checkout_min` after the meeting they came for
+ * ends (the first one that day ending after their check-in). On a day without one, after check-in.
+ * Until then they ask to be excused.
+ */
+export async function memberCheckoutFrom(visit: Pick<Visit, "check_in">) {
+  const { member_self_checkout_min, timezone } = await getSettings();
+  const checkIn = Date.parse(visit.check_in);
+  const day = localParts(new Date(checkIn), timezone).date;
+  const ends = (await meetingsOn(day)).map((m) => meetingWindow(m).end.getTime()).filter((end) => end > checkIn);
+  return new Date((ends.length ? Math.min(...ends) : checkIn) + member_self_checkout_min * 60_000);
 }
 
 /** OKs a request to leave: they're checked out at the time they asked, marked excused by `by`. */

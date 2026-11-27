@@ -19,6 +19,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   const rsvpHours = int(fd, "rsvp_open_hours");
   const remindHours = int(fd, "rsvp_reminder_hours");
   const closeHours = int(fd, "rsvp_close_hours");
+  const selfCheckout = int(fd, "member_self_checkout_min");
   const remindEvery = int(fd, "checkout_remind_every_hours");
   const missedAfter = int(fd, "missed_checkout_hours");
   const daysAhead = int(fd, "schedule_days_ahead");
@@ -38,6 +39,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   if (closeHours === null || closeHours < 0 || closeHours >= rsvpHours) {
     return { error: `Answers must close 0 (never) or fewer hours before than the RSVP window (${rsvpHours}).` };
   }
+  if (selfCheckout === null || selfCheckout < 0 || selfCheckout > 240) return { error: "Members can check themselves out 0–240 minutes after the meeting ends." };
   if (remindEvery === null || remindEvery < 0 || remindEvery > 24) return { error: "Remind about check-outs every 1–24 hours, or 0 to turn it off." };
   if (missedAfter === null || missedAfter < 1 || missedAfter > 48) return { error: "Mark a missed check-out 1–48 hours after the meeting ends." };
   if (daysAhead === null || daysAhead < 7 || daysAhead > 90) return { error: "Plan meetings 7–90 days ahead." };
@@ -52,6 +54,7 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
   await setSetting("rsvp_open_hours", rsvpHours);
   await setSetting("rsvp_reminder_hours", remindHours);
   await setSetting("rsvp_close_hours", closeHours);
+  await setSetting("member_self_checkout_min", selfCheckout);
   await setSetting("checkout_remind_every_hours", remindEvery);
   await setSetting("missed_checkout_hours", missedAfter);
   await setSetting("schedule_days_ahead", daysAhead);

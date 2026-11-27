@@ -56,6 +56,12 @@ export default async function SettingsPage() {
             <input name="rsvp_close_hours" type="number" min={0} max={335} defaultValue={s.rsvp_close_hours} className="input" />
           </Field>
           <Field
+            label="Members check themselves out from (minutes after the meeting ends)"
+            hint="Before that, members tap Ask to be excused and their subteam lead or a captain OKs it. 0: as soon as the meeting ends."
+          >
+            <input name="member_self_checkout_min" type="number" min={0} max={240} defaultValue={s.member_self_checkout_min} className="input" />
+          </Field>
+          <Field
             label="Remind who's still checked in every (hours)"
             hint="After the day's last meeting ends, captains and subteam leads get who still needs checking out, this often. 0 turns it off."
           >
