@@ -288,10 +288,10 @@ export default async function MeetingsPage() {
                 </span>
               </label>
               <label className="col-span-2 flex items-start gap-2 text-sm">
-                <input type="checkbox" name="open_to_all" className="mt-0.5 size-4" />
+                <input type="checkbox" name="closed" className="mt-0.5 size-4" />
                 <span>
-                  Open meeting
-                  <span className="block text-xs text-slate-500">Everyone sees it on their home screen and gets an FYI notification, quiet for those not invited. Unticked, only the people invited see it.</span>
+                  Closed meeting
+                  <span className="block text-xs text-slate-500">Only the people invited see it. Unticked (the default), everyone sees it on their home screen and gets an FYI notification, quiet for those not invited.</span>
                 </span>
               </label>
               <Field label="Reminder (hours before)" className="col-span-2" hint="Notifies everyone invited, except those who said they can't come. Leave empty for no reminder.">

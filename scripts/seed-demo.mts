@@ -209,6 +209,14 @@ await db.transaction(async (q) => {
   const liveEnd = `${String(Math.min(liveStartHour + 4, 23)).padStart(2, "0")}:${liveStartHour + 4 > 23 ? "59" : "00"}`;
   const liveId = await insertMeeting("Build session", today, liveStart, liveEnd, 1, 1, null, 0);
   await simulateMeeting(liveId, zonedToUtc(today, liveStart, TZ), zonedToUtc(today, liveEnd, TZ), true);
+  // A few of them have asked to be excused (two on the subteam lead's subteam).
+  const askers = (subteamFilter: string, n: number) =>
+    `(SELECT v.id FROM visits v JOIN users u ON u.id = v.user_id
+        WHERE v.check_out IS NULL AND u.role = 'member' AND u.subteam_lead = 0 AND ${subteamFilter} ORDER BY v.id LIMIT ${n})`;
+  await q.query(
+    `UPDATE visits SET excuse_requested_at = $1 WHERE id IN (${askers("u.subteam = 'Mechanical'", 2)} UNION ${askers("u.subteam <> 'Mechanical'", 1)})`,
+    [iso(new Date(now.getTime() - minutes(3)))],
+  );
 
   // --- Upcoming meetings with some RSVPs already in ----------------------------------------
   for (let d = today; d <= addDays(today, 21); d = addDays(d, 1)) {

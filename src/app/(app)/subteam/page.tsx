@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { leadCheckOut } from "@/actions/presence";
-import { SubmitButton } from "@/components/client";
+import { AutoRefresh, SubmitButton } from "@/components/client";
+import { ExcuseButton, LeaveTag } from "@/components/leave-request";
 import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
 import { AttendanceBadge, Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { computeAttendance, summaryFor, totalsFrom, type AttendanceEntry } from "@/lib/attendance";
@@ -18,7 +19,8 @@ export const metadata: Metadata = { title: "My subteam" };
 
 // A subteam lead's read-only view of their own subteam, made for a quick look on a phone:
 // who is coming to the next meeting, who is flagged (the captains' thresholds from Settings),
-// and each member's attendance. No reasons or contact details, and nothing can be changed here.
+// and each member's attendance. No reasons or contact details. The only actions: checking out and
+// excusing (OK) members of the subteam who are at school.
 
 const HISTORY = 8;
 
@@ -81,6 +83,7 @@ export default async function SubteamPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <AutoRefresh seconds={20} />
       <PageHeader title={me.subteam} subtitle={`${team.length} members`} />
 
       <Card title={`At school now (${here.length})`}>
@@ -88,19 +91,26 @@ export default async function SubteamPage() {
           <Empty>Nobody from {me.subteam} is checked in.</Empty>
         ) : (
           <>
-            <p className="mb-2 text-xs text-slate-500">Members can&apos;t check themselves out: check them out when they leave.</p>
+            <p className="mb-2 text-xs text-slate-500">Members ask to be excused: tap OK to let them go. Check out anyone who leaves without asking.</p>
             <ul className="divide-y divide-slate-100">
               {here.map((p) => (
                 <li key={p.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="min-w-0 truncate">
-                    {p.name} <span className="text-xs text-slate-500">since {fmtTime(p.check_in)}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate">
+                      {p.name} <span className="text-xs text-slate-500">since {fmtTime(p.check_in)}</span>
+                    </span>
+                    {p.excuse_requested_at && <LeaveTag at={p.excuse_requested_at} />}
                   </span>
-                  <form action={leadCheckOut}>
-                    <input type="hidden" name="user_id" value={p.user_id} />
-                    <SubmitButton className="btn btn-secondary btn-sm" pendingText="…">
-                      Check out
-                    </SubmitButton>
-                  </form>
+                  {p.excuse_requested_at ? (
+                    <ExcuseButton userId={p.user_id} />
+                  ) : (
+                    <form action={leadCheckOut} className="shrink-0">
+                      <input type="hidden" name="user_id" value={p.user_id} />
+                      <SubmitButton className="btn btn-secondary btn-sm" pendingText="…">
+                        Check out
+                      </SubmitButton>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>

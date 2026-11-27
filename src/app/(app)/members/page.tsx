@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AutoRefresh } from "@/components/client";
 import { ClockIcon, DownloadIcon, PlusIcon } from "@/components/icons";
+import { ExcuseButton, LeaveTag } from "@/components/leave-request";
 import { Avatar, Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { summarize, summaryFor } from "@/lib/attendance";
 import { requireStaff } from "@/lib/auth";
-import { fmtHours, pct } from "@/lib/format";
+import { fmtHours, fmtTime, pct } from "@/lib/format";
 import { meetingsBetween } from "@/lib/meetings";
 import { EXTRA_TEAMS, GRADES, SUBTEAMS, listMembers, roleLabel, type Member } from "@/lib/members";
 import { currentPeriod, today } from "@/lib/periods";
@@ -46,7 +48,10 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
   const period = await currentPeriod();
   const hours = await hoursByUser(period.from, period.to);
   const summaries = await summarize(await meetingsBetween(period.startDate, today(), false));
-  const here = new Set((await presentNow()).map((p) => p.user_id));
+  const present = await presentNow();
+  const here = new Set(present.map((p) => p.user_id));
+  const askingToLeave = present.filter((p) => p.excuse_requested_at);
+  const asking = new Map(askingToLeave.map((p) => [p.user_id, p.excuse_requested_at!]));
 
   const members = (await listMembers({ includeInactive: filter === "inactive" })).filter((m) => {
     if (filter === "inactive" && m.active) return false;
@@ -90,6 +95,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
 
   return (
     <div>
+      <AutoRefresh seconds={30} />
       <PageHeader
         title="Members"
         subtitle={`${members.length} shown · hours and attendance for ${period.label}`}
@@ -141,6 +147,25 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
         <button className="btn btn-secondary">Apply</button>
       </form>
 
+      {askingToLeave.length > 0 && (
+        <Card title={`Asking to leave (${askingToLeave.length})`} className="mb-4" pad={false}>
+          <ul className="divide-y divide-slate-100">
+            {askingToLeave.map((p) => (
+              <li key={p.user_id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
+                <Avatar name={p.name} size={32} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-900">{p.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {p.subteam ?? "No subteam"} · asked at {fmtTime(p.excuse_requested_at!)} · here since {fmtTime(p.check_in)}
+                  </div>
+                </div>
+                <ExcuseButton userId={p.user_id} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card pad={false}>
         {members.length === 0 ? (
           <Empty>No members match.</Empty>
@@ -176,7 +201,8 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                   return (
                     <tr key={m.id} className="hover:bg-slate-50">
                       <td>
-                        <Link href={`/members/${m.id}`} className="flex items-center gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                        <Link href={`/members/${m.id}`} className="flex min-w-0 items-center gap-3">
                           <Avatar name={m.name} size={32} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-1.5 font-medium text-slate-900">
@@ -194,8 +220,15 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                             <span className="block text-xs text-slate-500 md:hidden">
                               {[m.subteams.join(", "), m.grade && (m.grade === "Alumni" ? "Alumni" : `Grade ${m.grade}`)].filter(Boolean).join(" · ")}
                             </span>
+                            {asking.has(m.id) && (
+                              <span className="mt-0.5 block">
+                                <LeaveTag at={asking.get(m.id)!} />
+                              </span>
+                            )}
                           </span>
                         </Link>
+                        {asking.has(m.id) && <ExcuseButton userId={m.id} />}
+                        </div>
                       </td>
                       <td className="hidden text-slate-600 sm:table-cell">
                         {m.subteams.join(", ") || "—"}

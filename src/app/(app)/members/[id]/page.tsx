@@ -28,6 +28,7 @@ const METHOD_LABEL: Record<string, string> = {
   manual: "edited by captain",
   rsvp: "from RSVP, no check-in",
   missed: "left without checking out",
+  excused: "excused",
 };
 
 function Detail({ label, value }: { label: string; value: string | number | null | undefined }) {

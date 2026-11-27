@@ -3,6 +3,7 @@ import Link from "next/link";
 import { captainCheckIn, captainCheckOut, checkOutEveryone } from "@/actions/presence";
 import { AutoRefresh, ConfirmButton, CopyButton, SubmitButton } from "@/components/client";
 import { AlertIcon, MonitorIcon, PlusIcon } from "@/components/icons";
+import { ExcuseButton, LeaveTag } from "@/components/leave-request";
 import { PushToggle } from "@/components/push-toggle";
 import { Avatar, Badge, Banner, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { alertsToday } from "@/lib/alerts";
@@ -235,6 +236,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const mentorsHere = present.length - studentsHere;
   const mentorsToday = mentorPlanToday[0].entries;
   const presentIds = new Set(present.map((p) => p.user_id));
+  const asking = present.filter((p) => p.excuse_requested_at).length;
   // Team hours: how long the team has met this period, counting overlapping meetings once (not per member).
   const now = Date.now();
   const held = periodMeetings
@@ -341,7 +343,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           )}
 
           <Card
-            title={`At school now (${present.length})`}
+            title={`At school now (${present.length})${asking ? ` · ${asking} asking to leave` : ""}`}
             actions={
               present.length > 0 && (
                 <form action={checkOutEveryone}>
@@ -368,11 +370,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                       <div className="text-xs text-slate-500">
                         {p.subteam ?? "No subteam"} · since {fmtTime(p.check_in)} ({fmtDuration(Date.now() - Date.parse(p.check_in))})
                       </div>
+                      {p.excuse_requested_at && (
+                        <div className="mt-0.5">
+                          <LeaveTag at={p.excuse_requested_at} />
+                        </div>
+                      )}
                     </div>
-                    <form action={captainCheckOut}>
-                      <input type="hidden" name="user_id" value={p.user_id} />
-                      <SubmitButton className="btn btn-secondary btn-sm">Check out</SubmitButton>
-                    </form>
+                    {p.excuse_requested_at ? (
+                      <ExcuseButton userId={p.user_id} />
+                    ) : (
+                      <form action={captainCheckOut}>
+                        <input type="hidden" name="user_id" value={p.user_id} />
+                        <SubmitButton className="btn btn-secondary btn-sm">Check out</SubmitButton>
+                      </form>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { deleteMyVisit, updateMyVisit } from "@/actions/mentors";
-import { checkOutSelf, mentorCheckIn } from "@/actions/presence";
+import { askToLeave, cancelLeaveRequest, checkOutSelf, mentorCheckIn } from "@/actions/presence";
 import { volunteer } from "@/actions/volunteers";
-import { SubmitButton } from "@/components/client";
+import { AutoRefresh, SubmitButton } from "@/components/client";
 import { MentorIcon, ScanIcon, UserIcon } from "@/components/icons";
 import { InstallPrompt } from "@/components/install-prompt";
 import { SubteamNextMeeting } from "@/components/subteam-next-meeting";
@@ -114,8 +114,24 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                 Check out
               </SubmitButton>
             </form>
+          ) : visit.excuse_requested_at ? (
+            <div className="flex shrink-0 flex-col items-end text-right text-xs text-emerald-800">
+              {/* Picks up the OK without a manual reload. */}
+              <AutoRefresh seconds={20} />
+              <span className="font-semibold text-emerald-900">Asked to leave · {fmtTime(visit.excuse_requested_at)}</span>
+              <span>Waiting for an OK</span>
+              <form action={cancelLeaveRequest}>
+                <SubmitButton className="mt-1 font-medium underline" pendingText="…">
+                  Cancel
+                </SubmitButton>
+              </form>
+            </div>
           ) : (
-            <span className="max-w-32 text-right text-xs text-emerald-800">A captain or your subteam lead checks you out</span>
+            <form action={askToLeave} className="shrink-0">
+              <SubmitButton className="btn btn-secondary" pendingText="…">
+                Ask to be excused
+              </SubmitButton>
+            </form>
           )}
         </div>
       ) : mentor ? (

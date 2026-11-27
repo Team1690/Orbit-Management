@@ -9,10 +9,17 @@ export type Visit = {
   check_in: string;
   check_out: string | null;
   in_method: "qr" | "manual" | "self" | "rsvp";
-  /** auto: the old end-of-day check-out; rsvp: a meeting without check-in; missed: left without being checked out. */
-  out_method: "self" | "auto" | "manual" | "rsvp" | "missed" | null;
+  /**
+   * auto: the old end-of-day check-out; rsvp: a meeting without check-in; missed: left without being
+   * checked out; excused: asked to leave and was OK'd (checked out at the time they asked).
+   */
+  out_method: "self" | "auto" | "manual" | "rsvp" | "missed" | "excused" | null;
   /** Who last edited the times: a captain, or the person themselves (mentors). */
   edited_by: number | null;
+  /** When they asked to be excused, while the visit is open (or the time they were excused at). */
+  excuse_requested_at: string | null;
+  /** Who OK'd it; null if nobody did before the day's follow-ups closed the visit. */
+  excused_by: number | null;
 };
 
 /** Reads date + times from a visit form into UTC instants. An end time earlier than the start means the next day. */
@@ -56,6 +63,19 @@ export async function checkOut(userId: number, method: NonNullable<Visit["out_me
   return open;
 }
 
+/** OKs a request to leave: they're checked out at the time they asked, marked excused by `by`. */
+export async function excuse(userId: number, by: number | null) {
+  const open = await openVisit(userId);
+  if (!open?.excuse_requested_at) return null;
+  const changed = await run(
+    "UPDATE visits SET check_out = ?, out_method = 'excused', excused_by = ? WHERE id = ? AND check_out IS NULL",
+    open.excuse_requested_at,
+    by,
+    open.id,
+  );
+  return changed.changes > 0 ? open : null;
+}
+
 export type PresentMember = {
   visit_id: number;
   user_id: number;
@@ -63,14 +83,17 @@ export type PresentMember = {
   role: "member" | "captain" | "mentor";
   subteam: string | null;
   check_in: string;
+  /** They asked to be excused at this time and are waiting for an OK. */
+  excuse_requested_at: string | null;
 };
 
+/** Everyone checked in now: those asking to leave first, then by check-in time. */
 export function presentNow() {
   return all<PresentMember>(
-    `SELECT v.id AS visit_id, u.id AS user_id, u.name, u.role, u.subteam, v.check_in
+    `SELECT v.id AS visit_id, u.id AS user_id, u.name, u.role, u.subteam, v.check_in, v.excuse_requested_at
        FROM visits v JOIN users u ON u.id = v.user_id
       WHERE v.check_out IS NULL
-      ORDER BY v.check_in`,
+      ORDER BY (v.excuse_requested_at IS NULL), v.excuse_requested_at, v.check_in`,
   );
 }
 

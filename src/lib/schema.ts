@@ -300,6 +300,15 @@ const MIGRATIONS: string[] = [
   ALTER TABLE visits ADD CONSTRAINT visits_out_method_check CHECK (out_method IN ('self', 'auto', 'manual', 'rsvp', 'missed'));
   ALTER TABLE visits ADD COLUMN checkout_reminders INTEGER NOT NULL DEFAULT 0;
   `,
+
+  // 15: "ask to be excused". A member's request to leave is kept on their open visit; the OK (by their
+  // subteam lead, a lead mentor or a captain) checks them out at that time as 'excused'.
+  `
+  ALTER TABLE visits DROP CONSTRAINT IF EXISTS visits_out_method_check;
+  ALTER TABLE visits ADD CONSTRAINT visits_out_method_check CHECK (out_method IN ('self', 'auto', 'manual', 'rsvp', 'missed', 'excused'));
+  ALTER TABLE visits ADD COLUMN excuse_requested_at TEXT;
+  ALTER TABLE visits ADD COLUMN excused_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  `,
 ];
 
 /** Lock id shared by every app instance, so only one of them migrates at a time. */

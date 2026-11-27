@@ -12,11 +12,22 @@ import { localParts } from "./timeutil";
 //   after `missed_checkout_hours` hours: the visit is closed at the reference end and marked 'missed'
 //                ("left without checking out", shown on the member's page and the meeting sheet), and
 //                the same people get that final list.
+// Someone who asked to be excused is marked "(asked to leave)" in the reminders; if nobody OKs it by
+// then, they're excused as of the time they asked instead of being marked missed.
 // visits.checkout_reminders counts the reminders already sent for a visit. Called every minute.
 
 const HOUR = 3_600_000;
 
-type OpenVisit = { id: number; user_id: number; check_in: string; checkout_reminders: number; name: string; role: string; subteam: string | null };
+type OpenVisit = {
+  id: number;
+  user_id: number;
+  check_in: string;
+  checkout_reminders: number;
+  excuse_requested_at: string | null;
+  name: string;
+  role: string;
+  subteam: string | null;
+};
 
 /** The end of the last meeting on the visit's day that ends after the check-in, or else the check-in itself. */
 async function referenceEnds(visits: OpenVisit[], timezone: string) {
@@ -34,7 +45,11 @@ async function referenceEnds(visits: OpenVisit[], timezone: string) {
 
 /** Sends a list to captains, and to each subteam lead the part of it that is their own subteam (students only). */
 async function notify(people: OpenVisit[], title: (n: number) => string, body: (names: string) => string, kind: string, now: Date) {
-  const names = (list: OpenVisit[]) => list.map((p) => p.name).sort((a, b) => a.localeCompare(b)).join(", ");
+  const names = (list: OpenVisit[]) =>
+    [...list]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((p) => (p.excuse_requested_at ? `${p.name} (asked to leave)` : p.name))
+      .join(", ");
   const t = title(people.length);
   const b = body(names(people));
   await run("INSERT INTO alerts (kind, title, body, created_at) VALUES (?, ?, ?, ?)", kind, t, b, now.toISOString());
@@ -56,7 +71,7 @@ async function notify(people: OpenVisit[], title: (n: number) => string, body: (
 export async function sendCheckoutFollowUps(now = new Date()) {
   const { checkout_remind_every_hours: every, missed_checkout_hours: missedAfter, timezone } = await getSettings();
   const open = await all<OpenVisit>(
-    `SELECT v.id, v.user_id, v.check_in, v.checkout_reminders, u.name, u.role, u.subteam
+    `SELECT v.id, v.user_id, v.check_in, v.checkout_reminders, v.excuse_requested_at, u.name, u.role, u.subteam
        FROM visits v JOIN users u ON u.id = v.user_id WHERE v.check_out IS NULL`,
   );
   if (open.length === 0) return;
@@ -68,7 +83,10 @@ export async function sendCheckoutFollowUps(now = new Date()) {
     const ref = refs.get(v.id)!;
     const elapsed = now.getTime() - ref;
     if (elapsed <= 0) continue;
-    if (elapsed >= missedAfter * HOUR) {
+    if (elapsed >= missedAfter * HOUR && v.excuse_requested_at) {
+      // They asked to be excused but nobody OK'd it: excused as of the time they asked.
+      await run("UPDATE visits SET check_out = ?, out_method = 'excused' WHERE id = ? AND check_out IS NULL", v.excuse_requested_at, v.id);
+    } else if (elapsed >= missedAfter * HOUR) {
       // Left without being checked out: credited until the meeting ended, and marked so.
       const closed = await run("UPDATE visits SET check_out = ?, out_method = 'missed' WHERE id = ? AND check_out IS NULL", new Date(ref).toISOString(), v.id);
       if (closed.changes > 0) missed.push(v);

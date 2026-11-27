@@ -260,6 +260,8 @@ export async function updateVisit(visitId: number, _: FormState, fd: FormData): 
   const outMethod = t.checkOut ? (t.checkOut === current.check_out ? current.out_method : "manual") : null;
   try {
     await run("UPDATE visits SET check_in = ?, check_out = ?, out_method = ?, edited_by = ? WHERE id = ?", t.checkIn, t.checkOut, outMethod, me.id, visitId);
+    // Reopened: an old request to leave doesn't come back.
+    if (!t.checkOut) await run("UPDATE visits SET excuse_requested_at = NULL WHERE id = ?", visitId);
   } catch {
     return { error: "They already have another open visit. Add a check-out time." };
   }

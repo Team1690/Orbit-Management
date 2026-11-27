@@ -80,7 +80,8 @@ function readMeeting(fd: FormData) {
     end,
     mandatory: bool(fd, "mandatory"),
     rsvp: bool(fd, "rsvp"),
-    openToAll: bool(fd, "open_to_all"),
+    // Open unless "Closed meeting" is ticked.
+    openToAll: !bool(fd, "closed"),
     noCheckin: bool(fd, "no_checkin"),
     notes: optStr(fd, "notes"),
     audience: readAudience(fd, AUDIENCE_TEAMS),
